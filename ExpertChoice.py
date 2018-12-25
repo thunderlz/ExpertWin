@@ -41,7 +41,7 @@ class expertChoice:
         self.base = Frame(self.root,width=960, height=200)
         self.show = Frame(self.root,width=960, height=120)
         self.rlt = Frame(self.root, width=960, height=130)
-        self.manage = Frame(self.root, width=900, height=100)
+        self.manage = Frame(self.root, width=960, height=100)
 
         # 定义基本信息区域
         # 第一行
@@ -204,19 +204,19 @@ class expertChoice:
 
 
         # 管理区域
-        self.importdata_btn=Button(self.manage,text='导入专家库',command=self.getdata_func)
-        self.importdata_btn.grid(row=0,column=0,ipadx=30,padx=10,pady=5,sticky='W')
+        self.importdata_btn=Button(self.manage,text='导入专家库',command=self.importdata_func)
+        self.importdata_btn.grid(row=0,column=0,ipadx=30,padx=0,pady=5,sticky='W')
 
         self.cleardata_btn = Button(self.manage, text='清空专家库',command=self.cleardata_func)
-        self.cleardata_btn.grid(row=0, column=1,ipadx=30,padx=10,sticky='W')
+        self.cleardata_btn.grid(row=0, column=1,ipadx=30,padx=0,sticky='W')
 
         self.checkdata_btn = Button(self.manage, text='查看专家库',command=self.showexpert_func)
-        self.checkdata_btn.grid(row=0, column=2,ipadx=30,padx=10,sticky='W')
+        self.checkdata_btn.grid(row=0, column=2,ipadx=30,padx=0,sticky='W')
 
 
 
-        self.exit_btn = Button(self.manage, text='退出程序',command=exit)
-        self.exit_btn.grid(row=0, column=3,ipadx=30,padx=80,sticky='E')
+        self.exit_btn = Button(self.manage, text='退出程序',width=30,command=exit)
+        self.exit_btn.grid(row=0, column=3,ipadx=30,padx=120,sticky='E')
 
 
 
@@ -237,6 +237,7 @@ class expertChoice:
         self.bindshowconfnum_func()
         self.root.mainloop()
 
+    # 绑定各种数字的刷新
     def bindshowconfnum_func(self):
         self.bossnum_cb.bind('<<ComboboxSelected>>',self.showconfnum_func)
         self.confnum_cb.bind('<<ComboboxSelected>>', self.showconfnum_func)
@@ -244,7 +245,7 @@ class expertChoice:
 
         # 表格内容插入
     def showconditiontree_func(self):
-
+        # dfcondition
         # for index,row in self.df.iterrows():
         #     self.tree.insert("", "end", values=(row[0],row[1]))
         pass
@@ -266,20 +267,27 @@ class expertChoice:
 
 
     # 导入专家库
-    def getdata_func(self):
+    def importdata_func(self):
         filename = filedialog.askopenfilename()
         if filename!='':
-            self.dfexpert=pd.read_excel(filename,sheet_name='专家名单',header=1,index_col=0)
-            self.dfexpert = self.dfexpert.astype(str)
-            self.dfexpert.to_sql('tbexpert',self.dbconn,if_exists='replace')
+            try:
+                xlsfile=pd.ExcelFile(filename)
+                self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,index_col=0)
+                self.dfexpert = self.dfexpert.astype(str)
+                self.dfexpert.to_sql('tbexpert',self.dbconn,if_exists='replace')
 
-            self.dfcata = pd.read_excel('/Users/leizhen/Documents/PycharmProjects/专家抽取/评标专家库.xls', sheet_name='专业分类', header=1)
-            self.dfcata['编号'].fillna(method='ffill', inplace=True)
-            self.dfcata['专业分类'].fillna(method='ffill', inplace=True)
-            self.dfcata.to_sql('tbcata', self.dbconn, if_exists='replace')
+                self.dfcata = xlsfile.parse(sheet_name='专业分类', header=0)
+                self.dfcata['编号'].fillna(method='ffill', inplace=True)
+                self.dfcata.set_index('编号',inplace=True)
+                self.dfcata['专业分类'].fillna(method='ffill', inplace=True)
+                self.dfcata.to_sql('tbcata', self.dbconn, if_exists='replace')
 
-            # self.showconditiontree_func()
-            # self.choicefield_cb['values']=list(self.dfcata['专业分类'].unique())
+                messagebox.showinfo(title='导入成功', message='导入成功，可以按查看专家按钮查看。！')
+                # self.showconditiontree_func()
+                # self.choicefield_cb['values']=list(self.dfcata['专业分类'].unique())
+            except:
+                messagebox.showwarning(title='导入失败',message='导入失败，请重新导入！')
+
 
     # 清空专家库
     def cleardata_func(self):
@@ -288,6 +296,7 @@ class expertChoice:
         self.dfexpert=self.dfnull
         self.dfnull.to_sql('tbexpert',self.dbconn,if_exists='replace')
         self.dfnull.to_sql('tbcata', self.dbconn, if_exists='replace')
+        messagebox.showinfo(title='清空专家库',message='专家库已经清空！')
 
 
     def test(self):
@@ -321,6 +330,7 @@ class expertChoice:
             self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert)
             self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert)
 
+    # 查看专家
     def showexpert_func(self):
         expertwindow(self)
 
@@ -329,13 +339,14 @@ class expertwindow():
         self.mother=mother
         self.top=Toplevel(self.mother.root,width=900, height=500)
         self.top.title('专家库')
-        self.top.attributes('-topmost', 1)
+        # self.top.attributes('-topmost', 1)
 
         # 基本信息
         self.expertnum_var=StringVar()
         Label(self.top, text='专家数量').grid(row=0, column=0)
-        self.expertnum_et=Entry(self.top,textvariable=self.expertnum_var).grid(row=0, column=1)
-        Button(self.top,text='确定',command=self.top.destroy,width=30).grid(row=0,column=2)
+        self.expertnum_et = Entry(self.top, state='readonly',textvariable=self.expertnum_var).grid(row=0, column=1)
+        Button(self.top, text='导出数据', command=self.exportexpert_func, width=30).grid(row=0, column=2)
+        Button(self.top,text='退出',command=self.top.destroy,width=30).grid(row=0,column=3)
 
 
 
@@ -358,27 +369,39 @@ class expertwindow():
         self.experttree.heading("e", text="电话")
         self.experttree.heading("f", text="身份证号")
         # 调用方法获取表格内容插入
-        self.experttree.grid(row=1, column=0, sticky='NEW', columnspan=3)
-        self.expertvbar.grid(row=1, column=3, sticky='NS', columnspan=3)
+        self.experttree.grid(row=1, column=0, sticky='NEW', columnspan=4)
+        self.expertvbar.grid(row=1, column=4, sticky='NS', columnspan=4)
 
 
         # 显示专家树
-        self.showconditiontree_func()
+        self.showexperttree_func()
 
 
     def __del__(self):
         pass
 
     # 显示专家树
-    def showconditiontree_func(self):
+    def showexperttree_func(self):
 
         try:
             self.dfexpert=pd.read_sql('select * from tbexpert',self.mother.dbconn)
+            self.dfcata = pd.read_sql('select * from tbcata', self.mother.dbconn)
             self.expertnum_var.set(self.dfexpert['姓名'].count())
             for index, row in self.dfexpert.iterrows():
                 self.experttree.insert("", "end", values=(row[1], row[2], row[3], row[4], row[8], row[80]))
         except:
             self.experttree.insert("", "end", values=('没有数据', '', '', '', '', ''))
+    def exportexpert_func(self):
+
+        try:
+            writer = pd.ExcelWriter('导出专家库.xls')
+            self.dfexpert.to_excel(writer,sheet_name='专家名单',index=False)
+            self.dfcata.to_excel(writer, sheet_name='专业分类', index=False)
+            writer.save()
+            messagebox.showinfo(title='导出成功',message='导出成功，请在程序同一个文件夹查看。')
+
+        except:
+            messagebox.showwarning(title='导出失败',message='导出失败，请重新导入！')
 
 
 
