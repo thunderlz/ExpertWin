@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
+from tkinter import messagebox
 # import pymysql
 import pandas as pd
 
@@ -20,27 +21,29 @@ class expertChoice:
         self.root = Tk()
         self.root.title("中捷专家抽取系统")
         self.root.resizable(0, 0)
-        self.root.geometry('1024x600')
+        self.root.geometry('960x600')
 
         # 表头
         self.topimg=PhotoImage(file='top.gif')
         self.banner=ttk.Label(self.root,image=self.topimg)
-        self.banner.grid(row=0,column=0)
+        self.banner.grid(row=0,column=0,sticky='NWSE')
 
         # 四个框架
-        self.base = Frame(self.root,width=1000, height=200)
+        self.base = Frame(self.root,width=960, height=200)
         self.show = Frame(self.root,width=900, height=200)
         self.manage = Frame(self.root, width=900, height=200)
 
         # 定义基本信息区域
         # 第一行
         Label(self.base,text='招标组织方式:').grid(row=0,column=0,sticky=self.duiqi)
-        self.org = ttk.Combobox(self.base)
-        self.org.grid(row=0, column=1,sticky=W)
+        self.org_var=StringVar()
+        self.org_cb = ttk.Combobox(self.base,textvariable=self.org_var)
+        self.org_cb['values']=['公开招标','邀请招标','公开询价','单一来源采购']
+        self.org_cb.grid(row=0, column=1,sticky=W)
         Label(self.base, text='招标人名称:').grid(row=0,column=2,sticky=self.duiqi)
         self.boss = Entry(self.base)
         self.boss.grid(row=0, column=3,sticky=self.duiqi)
-        Label(self.base, text='招标代理机构项目编号:').grid(row=0, column=4,sticky=self.duiqi)
+        Label(self.base, text='招标代理机构\n项目编号:').grid(row=0, column=4,sticky=self.duiqi)
         self.agentid = Entry(self.base)
         self.agentid.grid(row=0, column=5,sticky=W)
 
@@ -49,7 +52,7 @@ class expertChoice:
         Label(self.base, text='项目编号:').grid(row=1, column=0,sticky=self.duiqi)
         self.projectid = Entry(self.base,width=55)
         self.projectid.grid(row=1, column=1,columnspan=3,sticky=self.duiqi)
-        Label(self.base, text='招标代理机构项目名称:').grid(row=1, column=4,sticky=self.duiqi)
+        Label(self.base, text='招标代理机构\n项目名称:').grid(row=1, column=4,sticky=self.duiqi)
 
         self.agentnames=StringVar()
         self.agentname_cb = ttk.Combobox(self.base,height=1,textvariable=self.agentnames)
@@ -62,10 +65,10 @@ class expertChoice:
         self.projectname.grid(row=2, column=1, columnspan=3,sticky=self.duiqi)
         Label(self.base, text='递补专家人数:').grid(row=2, column=4,sticky=self.duiqi)
 
-        self.agentnames = StringVar()
-        self.agentname_cb = ttk.Combobox(self.base, height=1, textvariable=self.agentnames)
-        self.agentname_cb['values'] = (1,2,3)
-        self.agentname_cb.grid(row=2, column=5,sticky=self.duiqi)
+        self.backexpertnum_var = StringVar()
+        self.backexpertnum_cb = ttk.Combobox(self.base, height=1, textvariable=self.backexpertnum_var)
+        self.backexpertnum_cb['values'] = (0,1,2,3)
+        self.backexpertnum_cb.grid(row=2, column=5,sticky=self.duiqi)
 
         # 第四行
         Label(self.base, text='抽取地点:').grid(row=3, column=0,sticky=self.duiqi)
@@ -80,15 +83,16 @@ class expertChoice:
 
         # 第五行
         Label(self.base, text='评标委员会人数:').grid(row=4, column=0,sticky=self.duiqi)
-        self.confnum = StringVar()
-        self.confnum_cb = ttk.Combobox(self.base, height=1, textvariable=self.confnum)
-        self.confnum_cb['values'] = (1, 2, 3)
-        self.confnum_cb.grid(row=4, column=1,sticky=self.duiqi)
+        self.confnum_var = StringVar()
+        self.confnum_et = Entry(self.base, textvariable=self.confnum_var)
+        self.confnum_et.grid(row=4, column=1,sticky=self.duiqi)
+        # self.confnum_et.bind('<FocusOut>', self.checkconfnum())
+
 
         Label(self.base, text='业主代表人数:').grid(row=4, column=2,sticky=self.duiqi)
-        self.bossnum = StringVar()
-        self.bossnum_cb = ttk.Combobox(self.base, height=1, textvariable=self.bossnum)
-        self.bossnum_cb['values'] = (1, 2, 3)
+        self.bossnum_var = StringVar()
+        self.bossnum_cb = ttk.Combobox(self.base, height=1, textvariable=self.bossnum_var)
+        self.bossnum_cb['values'] = (1, 0)
         self.bossnum_cb.grid(row=4, column=3,sticky=self.duiqi)
 
         self.bossinfo_btn=Button(self.base,text='填写业主代表信息')
@@ -96,11 +100,13 @@ class expertChoice:
 
         # 第六行
         Label(self.base, text='专家评委人数:').grid(row=5, column=0,sticky=self.duiqi)
-        self.expertnum = Entry(self.base)
+        self.expertnum_var = StringVar()
+        self.expertnum = Entry(self.base,state='readonly',textvariable=self.expertnum_var)
         self.expertnum.grid(row=5, column=1,sticky=self.duiqi)
 
         Label(self.base, text='需抽取专家\n（含递补）人数:').grid(row=5, column=2,sticky=self.duiqi)
-        self.expertchoicenum = Entry(self.base)
+        self.expertchoicenum_var = StringVar()
+        self.expertchoicenum = Entry(self.base,textvariable=self.expertchoicenum_var)
         self.expertchoicenum.grid(row=5, column=3,sticky=self.duiqi)
 
 
@@ -111,8 +117,8 @@ class expertChoice:
         self.tree.configure(yscrollcommand=self.vbar.set)
 
         # 表格的标题
-        self.tree.column("a", width=200, anchor="center")
-        self.tree.column("b", width=200, anchor="center")
+        self.tree.column("a", width=150, anchor="center")
+        self.tree.column("b", width=150, anchor="center")
         self.tree.heading("a", text="编号")
         self.tree.heading("b", text="名称")
 
@@ -152,13 +158,13 @@ class expertChoice:
 
 
         # 管理区域
-        self.importdata_btn=Button(self.manage,text='导入数据',command=self.getdata)
+        self.importdata_btn=Button(self.manage,text='导入数据',command=self.getdata_func)
         self.importdata_btn.grid(row=0,column=0,ipadx=30,padx=10,sticky='EW')
 
         self.choice_btn = Button(self.manage, text='开始抽取')
         self.choice_btn.grid(row=0, column=1,ipadx=30,padx=10,sticky='WE')
 
-        self.check_btn = Button(self.manage, text='查看结果',command=self.test)
+        self.check_btn = Button(self.manage, text='查看结果',command=self.showconfnum_func)
         self.check_btn.grid(row=0, column=2,ipadx=30,padx=10,sticky='WE')
 
         self.reset_btn = Button(self.manage, text='重置结果')
@@ -184,23 +190,52 @@ class expertChoice:
 
         self.root.mainloop()
         # 表格内容插入
-    def get_tree(self):
+    def get_tree_func(self):
 
-        for index,row in self.df.iterrows():
-            self.tree.insert("", "end", values=(row[0],row[1]))
-        # pass
+        # for index,row in self.df.iterrows():
+        #     self.tree.insert("", "end", values=(row[0],row[1]))
+        pass
 
     def __del__(self):
         pass
 
-    def getdata(self):
+    def getdata_func(self):
         filename = filedialog.askopenfilename()
-        self.df=pd.read_excel(filename,sheet_name='Sheet1',header=1,index_col=0)
-        self.get_tree()
-        self.choicefield_cb['values']=list(self.df['毕业院校'].unique())
+        self.dfexpert=pd.read_excel(filename,sheet_name='专家名单',header=1,index_col=0)
+        self.dfcata = pd.read_excel('/Users/leizhen/Documents/PycharmProjects/专家抽取/评标专家库.xls', sheet_name='专业分类', header=1)
+        self.dfcata['编号'].fillna(method='ffill', inplace=True)
+        self.dfcata['专业分类'].fillna(method='ffill', inplace=True)
+        self.get_tree_func()
+        self.choicefield_cb['values']=list(self.dfcata['专业分类'].unique())
 
     def test(self):
         print(self.choicefield.get())
+
+    def checknum_func(self):
+        try:
+            int(self.confnum_var.get())
+        except:
+            messagebox.showwarning(title='注意评标委员为人数',message='请填入3以上单数')
+            return False
+        if self.confnum_var.get()=='':
+            messagebox.showwarning(title='注意评标委员为人数',message='不能为空')
+            return False
+        if int(self.confnum_var.get())<=3 or int(self.confnum_var.get())%2==0:
+            messagebox.showwarning(title='注意评标委员为人数', message='不符合3人以上单数的要求')
+            return False
+        if self.bossnum_var.get()=='' :
+            messagebox.showwarning(title='注意业主代表为人数', message='请选择业主代表人数')
+            return False
+        if self.backexpertnum_var.get()=='' :
+            messagebox.showwarning(title='注意递补专家为人数', message='请选择递补专家人数')
+            return False
+        return True
+
+    def showconfnum_func(self):
+        if self.checknum_func():
+            self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get()))
+            self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get()))
+
 
 
 
