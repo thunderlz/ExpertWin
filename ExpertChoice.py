@@ -5,6 +5,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 import sqlite3
 import pandas as pd
+import numpy as np
 
 # from PIL import Image, ImageTk
 class expertChoice:
@@ -24,7 +25,11 @@ class expertChoice:
         self.root.geometry('960x600')
 
         # 全局变量
-        self.selectedexpert=0
+        self.selectedexpert=pd.DataFrame()
+        self.conditiontre_dict = {}
+
+        self.fieldlist = ['专业类别', '工作单位', '工作部门', '区域', '专业资质等级']
+
 
         # 初始化数据库
         self.dbconn=sqlite3.connect('mydb.db')
@@ -145,31 +150,37 @@ class expertChoice:
 
         # 展示筛选条件
         Label(self.show, text='字段名称:').grid(row=0, column=2,padx=50,sticky=self.duiqi)
-        self.choicefield = StringVar()
-        self.choicefield_cb = ttk.Combobox(self.show, height=1, textvariable=self.choicefield)
+        self.choicefield_var = StringVar()
+        self.choicefield_cb = ttk.Combobox(self.show, width=10,height=1,state='readonly',textvariable=self.choicefield_var)
         self.choicefield_cb.grid(row=0, column=3,sticky=self.duiqi)
-        self.choicefield_cb['values'] = (1, 2, 3)
+        self.choicefield_cb['values'] = self.fieldlist
+        self.choicefield_cb.current(0)
 
 
-        # Label(self.show, text='筛选条件1:').grid(row=1, column=2)
-        self.choicecondition1 = StringVar()
-        self.choicecondition1_cb = ttk.Combobox(self.show, height=1, textvariable=self.choicecondition1)
-        # self.choicecondition1_cb['values'] = (1, 2, 3)
-        # self.choicecondition1_cb.grid(row=1, column=3,sticky=self.duiqi)
+        self.condtion_lb=Label(self.show, text='筛选条件:')
+        self.condtion_lb.grid(row=1, column=2)
+        self.choicecondition1_var = StringVar()
+        self.choicecondition1_cb = ttk.Combobox(self.show, width=10,height=1,state='readonly',textvariable=self.choicecondition1_var)
+        self.choicecondition1_cb.grid(row=1, column=3,sticky=self.duiqi)
+        # self.choicecondition1_cb.grid_forget()
+
 
         # Label(self.show, text='筛选条件2').grid(row=2, column=2)
-        self.choicecondition2 = StringVar()
-        self.choicecondition2_cb = ttk.Combobox(self.show, height=1, textvariable=self.choicecondition2)
-        # self.choicecondition2_cb['values'] = (1, 2, 3)
+        # self.choicecondition2_var = StringVar()
+        # self.choicecondition2_cb = ttk.Combobox(self.show, height=1, textvariable=self.choicecondition2_var)
+        # # self.choicecondition2_cb['values'] = (1, 2, 3)
         # self.choicecondition2_cb.grid(row=2, column=3,sticky=self.duiqi)
 
-        self.addcondition_btn=Button(self.show,text='添加筛选条件',width=15,height=1)
-        self.addcondition_btn.grid(row=3,column=2)
-        self.delcondition_btn = Button(self.show, text='删除筛选条件',width=15,height=1)
-        self.delcondition_btn.grid(row=3, column=3)
+        self.addcondition_btn=Button(self.show,text='添加筛选条件',height=1,command=self.addcondition_func)
+        self.addcondition_btn.grid(row=3,column=3)
+        self.delcondition_btn = Button(self.show, text='清空筛选条件',height=1,command=self.delcondition_func)
+        self.delcondition_btn.grid(row=3, column=2)
 
-        self.choicecondition_lb=Listbox(self.show,height=6)
+        self.choicecondition_lbvar=StringVar()
+        self.choicecondition_lb=Listbox(self.show,height=6,selectmode = MULTIPLE,listvariable=self.choicecondition_lbvar)
         self.choicecondition_lb.grid(row=0,column=4,rowspan=4,padx=10,sticky=self.duiqi)
+
+        Button(self.show,text='抽取专家',height=6,width=10,command=self.choiceexpert_func).grid(row=0,column=5,rowspan=4)
 
         # 抽取结果
         Label(self.rlt, text='目前已抽取人数：',width=68,anchor='w').grid(row=0, column=0, sticky=self.duiqi)
@@ -213,8 +224,6 @@ class expertChoice:
         self.checkdata_btn = Button(self.manage, text='查看专家库',command=self.showexpert_func)
         self.checkdata_btn.grid(row=0, column=2,ipadx=30,padx=0,sticky='W')
 
-
-
         self.exit_btn = Button(self.manage, text='退出程序',width=30,command=exit)
         self.exit_btn.grid(row=0, column=3,ipadx=30,padx=120,sticky='E')
 
@@ -232,9 +241,14 @@ class expertChoice:
         self.rlt.grid_propagate(0)
         self.manage.grid_propagate(0)
 
-
+        # 初始化函数区
         self.showconfnum_func()
+        self.showcondition_func()
+
         self.bindshowconfnum_func()
+
+
+
         self.root.mainloop()
 
     # 绑定各种数字的刷新
@@ -242,24 +256,99 @@ class expertChoice:
         self.bossnum_cb.bind('<<ComboboxSelected>>',self.showconfnum_func)
         self.confnum_cb.bind('<<ComboboxSelected>>', self.showconfnum_func)
         self.backexpertnum_cb.bind('<<ComboboxSelected>>', self.showconfnum_func)
+        self.choicefield_cb.bind('<<ComboboxSelected>>',self.showcondition_func)
+        self.choicecondition1_cb.bind('<<ComboboxSelected>>', self.showcondition_func)
+
+
+    def showcondition_func(self,*args):
+        try:
+            self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
+            self.dfcata = pd.read_sql('select * from tbcata', self.dbconn)
+            if self.choicefield_var.get() != '专业类别':
+                self.condtion_lb.grid_forget()
+                self.choicecondition1_cb.grid_forget()
+                self.choicecondition_lb.delete(0, END)
+                for name in self.dfexpert[self.choicefield_var.get()].unique():
+                    self.choicecondition_lb.insert('end', name)
+            else:
+                self.condtion_lb.grid(row=1, column=2)
+                self.choicecondition1_cb.grid(row=1, column=3, sticky=self.duiqi)
+                self.choicecondition1_cb['values']=list(self.dfcata['专业分类'].unique())
+                self.choicecondition_lb.delete(0,END)
+                for major in self.dfcata[self.dfcata['专业分类']==self.choicecondition1_var.get()]['专业名称'].unique():
+                    self.choicecondition_lb.insert('end',major)
+        except:
+           pass
+
+
+    def addcondition_func(self):
+        try:
+            for cdn in self.choicecondition_lb.curselection():
+                self.conditiontre_dict.setdefault(self.choicefield_var.get(),set())
+                self.conditiontre_dict[self.choicefield_var.get()].add(self.choicecondition_lb.get(cdn))
+
+            self.showconditiontree_func()
+        except:
+            messagebox.showinfo(title='条件选择有误',message='请选择正确条件！')
+
+    def delcondition_func(self):
+        # for x in self.tree.selection():
+        #     self.tree.delete(x)
+        self.conditiontre_dict={}
+        self.cleartree_func(self.tree)
+
 
         # 表格内容插入
     def showconditiontree_func(self):
-        # dfcondition
-        # for index,row in self.df.iterrows():
-        #     self.tree.insert("", "end", values=(row[0],row[1]))
-        pass
+        self.cleartree_func(self.tree)
+        # print(self.conditiontre_dict)
+        for key,values in self.conditiontre_dict.items():
+            for value in values:
+                self.tree.insert("", "end", values=(key,value))
+
 
     def showrlttree_func(self):
-        # for index,row in self.df.iterrows():
-        #     self.tree.insert("", "end", values=(row[0],row[1]))
+        self.cleartree_func(self.rlttree)
+        for index,row in self.dfrltexpert.iterrows():
+            self.rlttree.insert("", "end", values=(row['姓名'],row['性别'],row['现任职务'],row['工作单位'],row['联系电话(133)'],row['身份证号']))
         pass
 
     # 清空树
-    def cleartree_func(tree):
+    def cleartree_func(self,tree):
         x = tree.get_children()
         for item in x:
             tree.delete(item)
+
+    def choiceexpert_func(self):
+        self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
+        self.dfconditionexpert=self.dfexpert.copy()
+        self.dfmajorexpert=self.dfexpert.set_index(['index']).stack().reset_index()
+        for key in self.conditiontre_dict.keys():
+            if key!='专业类别':
+                self.dfcondition=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                self.dfconditionexpert=pd.merge(self.dfcondition,self.dfconditionexpert,on=key,how='inner')
+            else:
+                self.dfmajor=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                self.dfmajor=pd.merge(self.dfmajor,self.dfcata,left_on=key,right_on='专业名称',how='inner')
+                self.dfmajorexpert=pd.merge(self.dfmajor,self.dfmajorexpert,
+                                      left_on='专业编号',right_on=0)
+
+
+        self.dfsampleexpert=pd.merge(self.dfconditionexpert,self.dfmajorexpert,on='index',how='inner')
+        self.dfsampleexpert=pd.DataFrame(self.dfsampleexpert['姓名'].unique())
+        if self.dfsampleexpert.shape[0]>int(self.expertnum_var.get()):
+            self.dfrltexpert=pd.merge(self.dfsampleexpert.sample(int(self.expertnum_var.get()),replace=False),
+                                      self.dfexpert,left_on=0,right_on='姓名',how='inner')
+            # print(self.dfrltexpert.columns)
+            self.showrlttree_func()
+
+        else:
+            messagebox.showinfo(title='不够数量',message='专家数量不够，请重设条件！')
+
+
+
+
+
 
 
     def __del__(self):
@@ -272,14 +361,24 @@ class expertChoice:
         if filename!='':
             try:
                 xlsfile=pd.ExcelFile(filename)
-                self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,index_col=0)
+                self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,converters={x:str for x in range(15,75)})
+                # 全部转换成文本
                 self.dfexpert = self.dfexpert.astype(str)
-                self.dfexpert.to_sql('tbexpert',self.dbconn,if_exists='replace')
+                self.dfexpert.replace('nan', np.nan, inplace=True)
+                self.dfexpert.replace('None', np.nan, inplace=True)
+                self.dfexpert.to_sql('tbexpert', self.dbconn, if_exists='replace')
 
-                self.dfcata = xlsfile.parse(sheet_name='专业分类', header=0)
+                # 分类表
+                self.dfcata = xlsfile.parse(sheet_name='专业分类', header=0,converters={0:str,2:str})
                 self.dfcata['编号'].fillna(method='ffill', inplace=True)
                 self.dfcata.set_index('编号',inplace=True)
                 self.dfcata['专业分类'].fillna(method='ffill', inplace=True)
+                self.dfcata['专业编号'].fillna(method='ffill', inplace=True)
+                self.dfcata['专业名称'].fillna(method='ffill', inplace=True)
+                # 全部转换成文本
+                self.dfcata = self.dfcata.astype(str)
+                self.dfcata.replace('nan', np.nan, inplace=True)
+                self.dfcata.replace('None', np.nan, inplace=True)
                 self.dfcata.to_sql('tbcata', self.dbconn, if_exists='replace')
 
                 messagebox.showinfo(title='导入成功', message='导入成功，可以按查看专家按钮查看。！')
@@ -299,8 +398,6 @@ class expertChoice:
         messagebox.showinfo(title='清空专家库',message='专家库已经清空！')
 
 
-    def test(self):
-        print(self.choicefield.get())
 
     def checknum_func(self):
         try:
@@ -327,8 +424,8 @@ class expertChoice:
 
     def showconfnum_func(self,*args):
         if self.checknum_func():
-            self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert)
-            self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert)
+            self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert.shape[0])
+            self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert.shape[0])
 
     # 查看专家
     def showexpert_func(self):
