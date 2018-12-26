@@ -27,6 +27,7 @@ class expertChoice:
         # 全局变量
         self.selectedexpert=pd.DataFrame()
         self.conditiontre_dict = {}
+
         self.fieldlist = ['专业类别', '工作单位', '工作部门', '区域', '专业资质等级']
 
 
@@ -179,7 +180,7 @@ class expertChoice:
         self.choicecondition_lb=Listbox(self.show,height=6,selectmode = MULTIPLE,listvariable=self.choicecondition_lbvar)
         self.choicecondition_lb.grid(row=0,column=4,rowspan=4,padx=10,sticky=self.duiqi)
 
-        Button(self.show,text='抽取专家',height=6,width=10).grid(row=0,column=5,rowspan=4)
+        Button(self.show,text='抽取专家',height=6,width=10,command=self.choiceexpert_func).grid(row=0,column=5,rowspan=4)
 
         # 抽取结果
         Label(self.rlt, text='目前已抽取人数：',width=68,anchor='w').grid(row=0, column=0, sticky=self.duiqi)
@@ -260,8 +261,8 @@ class expertChoice:
 
 
     def showcondition_func(self,*args):
-        # try:
-            self.dfexpert=pd.read_sql('select * from tbexpert',self.dbconn)
+        try:
+            self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
             self.dfcata = pd.read_sql('select * from tbcata', self.dbconn)
             if self.choicefield_var.get() != '专业类别':
                 self.condtion_lb.grid_forget()
@@ -273,19 +274,20 @@ class expertChoice:
                 self.condtion_lb.grid(row=1, column=2)
                 self.choicecondition1_cb.grid(row=1, column=3, sticky=self.duiqi)
                 self.choicecondition1_cb['values']=list(self.dfcata['专业分类'].unique())
-                # self.choicecondition1_cb.current(0)
                 self.choicecondition_lb.delete(0,END)
                 for major in self.dfcata[self.dfcata['专业分类']==self.choicecondition1_var.get()]['专业名称'].unique():
                     self.choicecondition_lb.insert('end',major)
-        # except:
-        #    pass
+        except:
+           pass
 
 
     def addcondition_func(self):
         try:
             for cdn in self.choicecondition_lb.curselection():
-                self.conditiontre_dict[self.choicecondition_lb.get(cdn)]=self.choicefield_var.get()
-                self.showconditiontree_func()
+                self.conditiontre_dict.setdefault(self.choicefield_var.get(),set())
+                self.conditiontre_dict[self.choicefield_var.get()].add(self.choicecondition_lb.get(cdn))
+
+            self.showconditiontree_func()
         except:
             messagebox.showinfo(title='条件选择有误',message='请选择正确条件！')
 
@@ -300,13 +302,15 @@ class expertChoice:
     def showconditiontree_func(self):
         self.cleartree_func(self.tree)
         # print(self.conditiontre_dict)
-        for y,x in self.conditiontre_dict.items():
-            self.tree.insert("", "end", values=(x,y))
+        for key,values in self.conditiontre_dict.items():
+            for value in values:
+                self.tree.insert("", "end", values=(key,value))
 
 
     def showrlttree_func(self):
-        # for index,row in self.df.iterrows():
-        #     self.tree.insert("", "end", values=(row[0],row[1]))
+        self.cleartree_func(self.rlttree)
+        for index,row in self.dfrltexpert.iterrows():
+            self.rlttree.insert("", "end", values=(row['姓名'],row['性别'],row['现任职务'],row['工作单位'],row['联系电话(133)'],row['身份证号']))
         pass
 
     # 清空树
@@ -314,6 +318,37 @@ class expertChoice:
         x = tree.get_children()
         for item in x:
             tree.delete(item)
+
+    def choiceexpert_func(self):
+        self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
+        self.dfconditionexpert=self.dfexpert.copy()
+        self.dfmajorexpert=self.dfexpert.set_index(['index']).stack().reset_index()
+        for key in self.conditiontre_dict.keys():
+            if key!='专业类别':
+                self.dfcondition=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                self.dfconditionexpert=pd.merge(self.dfcondition,self.dfconditionexpert,on=key,how='inner')
+            else:
+                self.dfmajor=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                self.dfmajor=pd.merge(self.dfmajor,self.dfcata,left_on=key,right_on='专业名称',how='inner')
+                self.dfmajorexpert=pd.merge(self.dfmajor,self.dfmajorexpert,
+                                      left_on='专业编号',right_on=0)
+
+
+        self.dfsampleexpert=pd.merge(self.dfconditionexpert,self.dfmajorexpert,on='index',how='inner')
+        self.dfsampleexpert=pd.DataFrame(self.dfsampleexpert['姓名'].unique())
+        if self.dfsampleexpert.shape[0]>int(self.expertnum_var.get()):
+            self.dfrltexpert=pd.merge(self.dfsampleexpert.sample(int(self.expertnum_var.get()),replace=False),
+                                      self.dfexpert,left_on=0,right_on='姓名',how='inner')
+            # print(self.dfrltexpert.columns)
+            self.showrlttree_func()
+
+        else:
+            messagebox.showinfo(title='不够数量',message='专家数量不够，请重设条件！')
+
+
+
+
+
 
 
     def __del__(self):
@@ -326,7 +361,7 @@ class expertChoice:
         if filename!='':
             try:
                 xlsfile=pd.ExcelFile(filename)
-                self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,index_col=0,converters={x:str for x in range(15,75)})
+                self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,converters={x:str for x in range(15,75)})
                 # 全部转换成文本
                 self.dfexpert = self.dfexpert.astype(str)
                 self.dfexpert.replace('nan', np.nan, inplace=True)
@@ -363,8 +398,6 @@ class expertChoice:
         messagebox.showinfo(title='清空专家库',message='专家库已经清空！')
 
 
-    def test(self):
-        print(self.choicefield.get())
 
     def checknum_func(self):
         try:
