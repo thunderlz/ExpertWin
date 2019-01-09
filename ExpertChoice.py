@@ -5,7 +5,9 @@ from tkinter import filedialog
 from tkinter import messagebox
 from datetime import datetime as dt
 
-import docx
+from docx import Document
+from docx.shared import Inches
+
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -68,6 +70,7 @@ class expertChoice:
         Label(self.base, text='招标人名称:').grid(row=0,column=2,sticky=self.duiqi)
         self.boss = Entry(self.base)
         self.boss.grid(row=0, column=3,sticky=self.duiqi)
+
         Label(self.base, text='招标代理机构\n项目编号:').grid(row=0, column=4,sticky=self.duiqi)
         self.agentid = Entry(self.base)
         self.agentid.grid(row=0, column=5,sticky=W)
@@ -75,7 +78,8 @@ class expertChoice:
 
         # 第二行
         Label(self.base, text='项目编号:').grid(row=1, column=0,sticky=self.duiqi)
-        self.projectid = Entry(self.base,width=55)
+        self.projectid_var=StringVar()
+        self.projectid = Entry(self.base,width=55,textvariable=self.projectid_var)
         self.projectid.grid(row=1, column=1,columnspan=3,sticky=self.duiqi)
 
         Label(self.base, text='招标代理机构\n项目名称:').grid(row=1, column=4,sticky=self.duiqi)
@@ -87,7 +91,8 @@ class expertChoice:
 
         # 第三行
         Label(self.base, text='项目名称:').grid(row=2, column=0,sticky=self.duiqi)
-        self.projectname = Entry(self.base, width=55)
+        self.projectname_var=StringVar()
+        self.projectname = Entry(self.base, width=55,textvariable=self.projectname_var)
         self.projectname.grid(row=2, column=1, columnspan=3,sticky=self.duiqi)
 
 
@@ -100,13 +105,14 @@ class expertChoice:
 
         # 第四行
         Label(self.base, text='抽取地点:').grid(row=3, column=0,sticky=self.duiqi)
-        self.choiceplace = Entry(self.base, width=55)
+        self.choiceplace_var=StringVar()
+        self.choiceplace = Entry(self.base, width=55,textvariable=self.choiceplace_var)
         self.choiceplace.grid(row=3, column=1, columnspan=3,sticky=self.duiqi)
+
+
         Label(self.base, text='抽取时间:').grid(row=3, column=4,sticky=self.duiqi)
-
-
-        self.choicedate = StringVar()
-        self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate)
+        self.choicedate_var = StringVar()
+        self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate_var)
         self.choicedate_cb['values'] = (dt.now().strftime('%Y-%m-%d'))
         self.choicedate_cb.current(0)
         self.choicedate_cb.grid(row=3, column=5,sticky=self.duiqi)
@@ -368,7 +374,7 @@ class expertChoice:
                                               self.dfexpert,left_on=0,right_on='index',how='inner')
                     _['index']=_['index'].astype(str)
                     _.set_index('index',inplace=True)
-                    _['是否参加']='未联系'
+                    _['是否参加']='参加'
                     self.choicetime_int+=1
                     _['抽取批次']=self.choicetime_int
 
@@ -436,13 +442,49 @@ class expertChoice:
 
     # 导出抽取结果数据
     def exportrlt_func(self):
-        try:
+        # try:
             if self.dfrltexpert[self.dfrltexpert['是否参加']=='参加'].shape[0]==5:
                 print('ok')
+                # 此处添加导出文件的代码
+                summary_doc=Document('评标专家抽取过程纪要函(模板).docx')
+                # print(self.projectname_var.get())
+                summary_doc.paragraphs[1].text = summary_doc.paragraphs[1].text+ self.projectname_var.get()
+                summary_doc.paragraphs[2].text = summary_doc.paragraphs[2].text + self.projectid_var.get()
+                summary_doc.paragraphs[3].text = summary_doc.paragraphs[3].text+ self.choicedate_var.get()
+                summary_doc.paragraphs[4].text = summary_doc.paragraphs[4].text + self.choiceplace_var.get()
+                _=summary_doc.paragraphs[5].text.split('|')
+                summary_doc.paragraphs[5].text = _[0]+self.choicedate_var.get()+_[1]+self.choiceplace_var.get()+_[2]
+                _=summary_doc.paragraphs[6].text.split('|')
+                summary_doc.paragraphs[6].text = _[0] + self.confnum_var.get() + _[1] + self.bossnum_var.get() + _[2] +str(int(self.confnum_var.get())-int(self.bossnum_var.get()))+_[3]
+                i=1
+                for index,row in self.dfrltexpert.iterrows():
+                    summary_doc.tables[0].add_row()
+                    summary_doc.tables[0].rows[i].cells[0].text = str(i)
+                    summary_doc.tables[0].rows[i].cells[1].text = row['姓名']
+                    summary_doc.tables[0].rows[i].cells[2].text = row['工作单位']
+                    summary_doc.tables[0].rows[i].cells[3].text = row['联系电话(133)']
+                    summary_doc.tables[0].rows[i].cells[4].text = str(row['抽取批次'])
+                    summary_doc.tables[0].rows[i].cells[5].text = row['是否参加']
+                    i=i+1
+
+                dfexpertfinal=self.dfrltexpert[self.dfrltexpert['是否参加']=='参加']
+                j=1
+                for index,row in dfexpertfinal.iterrows():
+                    summary_doc.tables[1].add_row()
+                    summary_doc.tables[1].rows[j].cells[0].text = str(j)
+                    summary_doc.tables[1].rows[j].cells[1].text = row['姓名']
+                    summary_doc.tables[1].rows[j].cells[2].text = row['工作单位']
+                    summary_doc.tables[1].rows[j].cells[3].text = row['联系电话(133)']
+                    summary_doc.tables[1].rows[j].cells[4].text = '技术'
+                    summary_doc.tables[1].rows[j].cells[5].text = '抽取'
+                    j=j+1
+
+                summary_doc.paragraphs[13].text = self.choicedate_var.get()
+                summary_doc.save('评标专家抽取过程纪要函'+dt.today().strftime('%Y%m%d')+'.docx')
             else:
                 messagebox.showinfo(title='专家数量不符合要求',message='请确定参加评标会议的专家数量符合要求！')
-        except:
-            messagebox.showwarning(title='警告', message='请先抽取专家！')
+        # except:
+        #     messagebox.showwarning(title='警告', message='请先抽取专家！')
 
 
     # 清空专家库
