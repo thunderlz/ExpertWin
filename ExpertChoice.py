@@ -3,6 +3,9 @@ from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
+from datetime import datetime as dt
+
+import docx
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -22,13 +25,17 @@ class expertChoice:
         self.root = Tk()
         self.root.title("中捷专家抽取系统")
         self.root.resizable(0, 0)
-        self.root.geometry('960x600')
+        self.root.geometry('960x600+200+100')
 
         # 全局变量
-        self.selectedexpert=pd.DataFrame()
+        # 由于要考虑多次抽取的问题，所以定义一个抽取结果的全局变量
+        self.dfrltexpert=pd.DataFrame()
+        # 抽取的批次
+        self.choicetime_int=0
         self.conditiontre_dict = {}
 
         self.fieldlist = ['专业类别', '工作单位', '工作部门', '区域', '专业资质等级']
+
 
 
         # 初始化数据库
@@ -97,9 +104,11 @@ class expertChoice:
         self.choiceplace.grid(row=3, column=1, columnspan=3,sticky=self.duiqi)
         Label(self.base, text='抽取时间:').grid(row=3, column=4,sticky=self.duiqi)
 
+
         self.choicedate = StringVar()
-        self.choicedate_cb = ttk.Combobox(self.base, height=1, textvariable=self.agentnames)
-        self.choicedate_cb['values'] = (1, 2, 3)
+        self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate)
+        self.choicedate_cb['values'] = (dt.now().strftime('%Y-%m-%d'))
+        self.choicedate_cb.current(0)
         self.choicedate_cb.grid(row=3, column=5,sticky=self.duiqi)
 
         # 第五行
@@ -185,30 +194,37 @@ class expertChoice:
         # 抽取结果
         Label(self.rlt, text='目前已抽取人数：',width=68,anchor='w').grid(row=0, column=0, sticky=self.duiqi)
 
-        self.export=Button(self.rlt,text='导出结果',width=15)
+        # 导出结果按钮
+        self.export=Button(self.rlt,text='导出结果',width=15,command=self.exportrlt_func)
         self.export.grid(row=0,column=2,sticky='E')
-
-        self.reset_btn = Button(self.rlt, text='重置结果',width=15)
+        # 重置结果按钮
+        self.reset_btn = Button(self.rlt, text='重置结果',width=15,command=self.resetrlttree)
         self.reset_btn.grid(row=0, column=1,sticky='E')
 
 
-        self.rlttree = ttk.Treeview(self.rlt, show="headings", height=5, columns=("a", "b", "c", "d", "e", "f"))
+        self.rlttree = ttk.Treeview(self.rlt, show="headings", height=5, columns=("i","a", "b", "c", "d", "e", "f",'g','h'))
         self.rltvbar = ttk.Scrollbar(self.rlt, orient=VERTICAL, command=self.rlttree.yview)
         # 定义树形结构与滚动条
-        self.rlttree.configure(yscrollcommand=self.vbar.set)
+        self.rlttree.configure(yscrollcommand=self.rltvbar.set)
         # 表格的标题
+        self.rlttree.column("i", width=50, anchor="center")
         self.rlttree.column("a", width=80, anchor="center")
         self.rlttree.column("b", width=50, anchor="center")
-        self.rlttree.column("c", width=200, anchor="center")
-        self.rlttree.column("d", width=200, anchor="center")
-        self.rlttree.column("e", width=180, anchor="center")
-        self.rlttree.column("f", width=200, anchor="center")
+        self.rlttree.column("c", width=180, anchor="center")
+        self.rlttree.column("d", width=190, anchor="center")
+        self.rlttree.column("e", width=50, anchor="center")
+        self.rlttree.column("f", width=130, anchor="center")
+        self.rlttree.column("g", width=90, anchor="center")
+        self.rlttree.column("h", width=90, anchor="center")
+        self.rlttree.heading("i", text="序号")
         self.rlttree.heading("a", text="姓名")
         self.rlttree.heading("b", text="性别")
-        self.rlttree.heading("c", text="现任职务")
-        self.rlttree.heading("d", text="工作单位")
-        self.rlttree.heading("e", text="电话")
-        self.rlttree.heading("f", text="身份证号")
+        self.rlttree.heading("c", text='工作单位')
+        self.rlttree.heading("d", text="工作部门")
+        self.rlttree.heading("e", text="区域")
+        self.rlttree.heading("f", text="资质等级")
+        self.rlttree.heading("g", text="是否参加")
+        self.rlttree.heading("h", text="抽取批次")
         # 调用方法获取表格内容插入
         self.rlttree.grid(row=1, column=0, sticky='NEW',columnspan=3)
         self.rltvbar.grid(row=1, column=3, sticky='NS',columnspan=3)
@@ -245,19 +261,21 @@ class expertChoice:
         self.showconfnum_func()
         self.showcondition_func()
 
-        self.bindshowconfnum_func()
+        self.bind_func()
 
 
 
         self.root.mainloop()
 
     # 绑定各种数字的刷新
-    def bindshowconfnum_func(self):
+    def bind_func(self):
         self.bossnum_cb.bind('<<ComboboxSelected>>',self.showconfnum_func)
         self.confnum_cb.bind('<<ComboboxSelected>>', self.showconfnum_func)
         self.backexpertnum_cb.bind('<<ComboboxSelected>>', self.showconfnum_func)
+
         self.choicefield_cb.bind('<<ComboboxSelected>>',self.showcondition_func)
         self.choicecondition1_cb.bind('<<ComboboxSelected>>', self.showcondition_func)
+        self.rlttree.bind('<Double-1>',self.expertcheck_func)
 
 
     def showcondition_func(self,*args):
@@ -310,7 +328,7 @@ class expertChoice:
     def showrlttree_func(self):
         self.cleartree_func(self.rlttree)
         for index,row in self.dfrltexpert.iterrows():
-            self.rlttree.insert("", "end", values=(row['姓名'],row['性别'],row['现任职务'],row['工作单位'],row['联系电话(133)'],row['身份证号']))
+            self.rlttree.insert("", "end", values=(index,row['姓名'],row['性别'], row['工作单位'], row['工作部门'], row['区域'], row['专业资质等级'], row['是否参加'], row['抽取批次']))
         pass
 
     # 清空树
@@ -319,33 +337,62 @@ class expertChoice:
         for item in x:
             tree.delete(item)
 
+    # 抽取数据的函数
     def choiceexpert_func(self):
-        self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
-        self.dfconditionexpert=self.dfexpert.copy()
-        self.dfmajorexpert=self.dfexpert.set_index(['index']).stack().reset_index()
-        for key in self.conditiontre_dict.keys():
-            if key!='专业类别':
-                self.dfcondition=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
-                self.dfconditionexpert=pd.merge(self.dfcondition,self.dfconditionexpert,on=key,how='inner')
+        # try:
+        if int(self.expertchoicenum_var.get())>0:
+            self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
+            # 不为空
+            if self.dfexpert.shape[0]!=0:
+                self.dfconditionexpert=self.dfexpert.copy()
+                self.dfmajorexpert=self.dfexpert.set_index(['index']).stack().reset_index()
+                for key in self.conditiontre_dict.keys():
+                    if key!='专业类别':
+                        self.dfcondition=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                        self.dfconditionexpert=pd.merge(self.dfcondition,self.dfconditionexpert,on=key,how='inner')
+                    else:
+                        self.dfmajor=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
+                        self.dfmajor=pd.merge(self.dfmajor,self.dfcata,left_on=key,right_on='专业名称',how='inner')
+                        self.dfmajorexpert=pd.merge(self.dfmajor,self.dfmajorexpert,
+                                              left_on='专业编号',right_on=0)
+
+
+                self.dfsampleexpert=pd.merge(self.dfconditionexpert,self.dfmajorexpert,on='index',how='inner')
+                self.dfsampleexpert=pd.DataFrame(self.dfsampleexpert['index'].unique())
+                # dfsampleexpert是可以用来抽取的专家index清单，只有一列，sample就是在index，防止重名的情况发生
+                # dfrltexpert就是抽取出来的专家库，包含完整的列。
+                if self.dfsampleexpert.shape[0]>int(self.expertnum_var.get()):
+
+                    # 折腾索引
+                    _=pd.merge(self.dfsampleexpert.sample(int(self.expertchoicenum_var.get()),replace=False),
+                                              self.dfexpert,left_on=0,right_on='index',how='inner')
+                    _['index']=_['index'].astype(str)
+                    _.set_index('index',inplace=True)
+                    _['是否参加']='未联系'
+                    self.choicetime_int+=1
+                    _['抽取批次']=self.choicetime_int
+
+                    self.dfrltexpert = pd.concat([self.dfrltexpert, _])
+                    # print(self.dfrltexpert.columns)
+                    self.showrlttree_func()
+
+                else:
+                    messagebox.showinfo(title='不够数量',message='专家数量不够，请重设条件！')
             else:
-                self.dfmajor=pd.DataFrame(list(self.conditiontre_dict[key]),columns=[key])
-                self.dfmajor=pd.merge(self.dfmajor,self.dfcata,left_on=key,right_on='专业名称',how='inner')
-                self.dfmajorexpert=pd.merge(self.dfmajor,self.dfmajorexpert,
-                                      left_on='专业编号',right_on=0)
-
-
-        self.dfsampleexpert=pd.merge(self.dfconditionexpert,self.dfmajorexpert,on='index',how='inner')
-        self.dfsampleexpert=pd.DataFrame(self.dfsampleexpert['姓名'].unique())
-        if self.dfsampleexpert.shape[0]>int(self.expertnum_var.get()):
-            self.dfrltexpert=pd.merge(self.dfsampleexpert.sample(int(self.expertnum_var.get()),replace=False),
-                                      self.dfexpert,left_on=0,right_on='姓名',how='inner')
-            # print(self.dfrltexpert.columns)
-            self.showrlttree_func()
-
+                messagebox.showwarning(title='没有专家数据',message='没有专家数据，请导出专家！')
         else:
-            messagebox.showinfo(title='不够数量',message='专家数量不够，请重设条件！')
+            messagebox.showinfo(title='抽取完成',message='如需重新抽取请重置结果！')
+        # print(self.dfrltexpert)
+        # print(self.expertchoicenum_var.get())
+        # 刷新数量
+        self.showconfnum_func()
 
-
+        # 重置结果
+    def resetrlttree(self):
+        self.dfrltexpert=pd.DataFrame()
+        self.choicetime_int=0
+        self.cleartree_func(self.rlttree)
+        self.showconfnum_func()
 
 
 
@@ -387,6 +434,16 @@ class expertChoice:
             except:
                 messagebox.showwarning(title='导入失败',message='导入失败，请重新导入！')
 
+    # 导出抽取结果数据
+    def exportrlt_func(self):
+        try:
+            if self.dfrltexpert[self.dfrltexpert['是否参加']=='参加'].shape[0]==5:
+                print('ok')
+            else:
+                messagebox.showinfo(title='专家数量不符合要求',message='请确定参加评标会议的专家数量符合要求！')
+        except:
+            messagebox.showwarning(title='警告', message='请先抽取专家！')
+
 
     # 清空专家库
     def cleardata_func(self):
@@ -424,12 +481,21 @@ class expertChoice:
 
     def showconfnum_func(self,*args):
         if self.checknum_func():
-            self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert.shape[0])
-            self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get())-int(self.bossnum_var.get())-self.selectedexpert.shape[0])
+            self.expertnum_var.set(int(self.confnum_var.get())-int(self.bossnum_var.get()))
+            try:
+                joinexpert=self.dfrltexpert[(self.dfrltexpert['是否参加']=='参加') | (self.dfrltexpert['是否参加']=='未联系')].shape[0]
+            except:
+                joinexpert=0
+            self.expertchoicenum_var.set(int(self.confnum_var.get())+int(self.backexpertnum_var.get())-int(self.bossnum_var.get())-joinexpert)
 
     # 查看专家
     def showexpert_func(self):
         expertwindow(self)
+    # 确定专家
+    def expertcheck_func(self,*args):
+        # print(args)
+        expertcheck(self)
+        # print('abcabc')
 
 class expertwindow():
     def __init__(self,mother):
@@ -448,23 +514,25 @@ class expertwindow():
 
 
         # 初始化树
-        self.experttree = ttk.Treeview(self.top, show="headings", height=20, columns=("a", "b", "c", "d", "e", "f"))
+        self.experttree = ttk.Treeview(self.top, show="headings", height=20, columns=("a", "b", "c", "d", "e", "f",'g'))
         self.expertvbar = ttk.Scrollbar(self.top, orient=VERTICAL, command=self.experttree.yview)
         # 定义树形结构与滚动条
         self.experttree.configure(yscrollcommand=self.expertvbar.set)
         # 表格的标题
         self.experttree.column("a", width=80, anchor="center")
         self.experttree.column("b", width=50, anchor="center")
-        self.experttree.column("c", width=200, anchor="center")
-        self.experttree.column("d", width=200, anchor="center")
-        self.experttree.column("e", width=180, anchor="center")
-        self.experttree.column("f", width=200, anchor="center")
+        self.experttree.column("c", width=190, anchor="center")
+        self.experttree.column("d", width=190, anchor="center")
+        self.experttree.column("e", width=50, anchor="center")
+        self.experttree.column("f", width=190, anchor="center")
+        self.experttree.column("g", width=180, anchor="center")
         self.experttree.heading("a", text="姓名")
         self.experttree.heading("b", text="性别")
-        self.experttree.heading("c", text="现任职务")
-        self.experttree.heading("d", text="工作单位")
-        self.experttree.heading("e", text="电话")
-        self.experttree.heading("f", text="身份证号")
+        self.experttree.heading("c", text='工作单位')
+        self.experttree.heading("d", text="工作部门")
+        self.experttree.heading("e", text="区域")
+        self.experttree.heading("f", text="资质等级")
+        self.experttree.heading("g", text="身份证号")
         # 调用方法获取表格内容插入
         self.experttree.grid(row=1, column=0, sticky='NEW', columnspan=4)
         self.expertvbar.grid(row=1, column=4, sticky='NS', columnspan=4)
@@ -485,7 +553,7 @@ class expertwindow():
             self.dfcata = pd.read_sql('select * from tbcata', self.mother.dbconn)
             self.expertnum_var.set(self.dfexpert['姓名'].count())
             for index, row in self.dfexpert.iterrows():
-                self.experttree.insert("", "end", values=(row[1], row[2], row[3], row[4], row[8], row[80]))
+                self.experttree.insert("", "end", values=(row['姓名'],row['性别'], row['工作单位'], row['工作部门'], row['区域'], row['专业资质等级'], row['身份证号']))
         except:
             self.experttree.insert("", "end", values=('没有数据', '', '', '', '', ''))
     def exportexpert_func(self):
@@ -499,6 +567,65 @@ class expertwindow():
 
         except:
             messagebox.showwarning(title='导出失败',message='导出失败，请重新导入！')
+
+
+
+class expertcheck():
+    def __init__(self,mother):
+        self.mother = mother
+        self.top = Toplevel(self.mother.root, width=500, height=300)
+        self.top.title('专家确定')
+        self.top.geometry('550x300')
+        self.expertinfo=Frame(self.top,width=500,height=200)
+        self.expertinfo.grid(row=0,column=0)
+        self.expertindex = str(self.mother.rlttree.item(mother.rlttree.focus())['values'][0])
+        # print(self.mother.rlttree.item(mother.rlttree.focus()))
+        # print(self.expertindex)
+        # print(type(self.expertindex))
+        # print(self.mother.dfrltexpert.index)
+        self.dfexpert=self.mother.dfrltexpert.loc[self.expertindex,:]
+        # print(self.dfexpert)
+        Label(self.expertinfo, text='姓名：').grid(row=0, column=0,sticky=W)
+        Label(self.expertinfo,text=self.dfexpert['姓名']).grid(row=0,column=1,sticky=W)
+        Label(self.expertinfo, text='性别：').grid(row=0, column=2,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert[ '性别']).grid(row=0, column=3,sticky=W)
+        Label(self.expertinfo, text='现任职务：').grid(row=1, column=0,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['现任职务']).grid(row=1, column=1,sticky=W)
+        Label(self.expertinfo, text='工作单位：').grid(row=1, column=2,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['工作单位']).grid(row=1, column=3,sticky=W)
+        Label(self.expertinfo, text='工作部门：').grid(row=2, column=0,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['工作部门']).grid(row=2, column=1,sticky=W)
+        Label(self.expertinfo, text='区域：').grid(row=2, column=2,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['区域']).grid(row=2, column=3,sticky=W)
+        Label(self.expertinfo, text='联系电话(办公)：').grid(row=3, column=0,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['联系电话(办公)']).grid(row=3, column=1,sticky=W)
+        Label(self.expertinfo, text='联系电话(手机)：').grid(row=3, column=2,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['联系电话(133)']).grid(row=3, column=3,sticky=W)
+        Label(self.expertinfo, text='E-MAIL：').grid(row=4, column=0,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['E-MAIL']).grid(row=4, column=1,sticky=W)
+        Label(self.expertinfo, text='专业资质名称：').grid(row=4, column=2,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['专业资质名称']).grid(row=4, column=3,sticky=W)
+        Label(self.expertinfo, text='专业资质等级：').grid(row=5, column=0,sticky=W)
+        Label(self.expertinfo, text=self.dfexpert['专业资质等级']).grid(row=5, column=1,sticky=W)
+        # 选择
+        Label(self.expertinfo, text='是否参加：').grid(row=5, column=2, sticky=W)
+        self.isjoin_var = StringVar()
+        self.isjoin_cb = ttk.Combobox(self.expertinfo, height=1, textvariable=self.isjoin_var,width=8)
+        self.isjoin_cb['values'] = ('参加', '不参加', '无法联系')
+        # self.isjoin_cb.current(0)
+        self.isjoin_var.set(self.dfexpert['是否参加'])
+        self.isjoin_cb.grid(row=5, column=3,sticky=W)
+
+        # 备注
+        Label(self.expertinfo, text='备注：').grid(row=6, column=0, sticky=W)
+        # Text(self.expertinfo,height=4).grid(row=7,column=0,columnspan=4)
+        Button(self.top,text='确定',width=20,command=self.expertconfirm_func).grid(row=1,column=0)
+
+    def expertconfirm_func(self):
+        self.mother.dfrltexpert.loc[self.expertindex,'是否参加']=self.isjoin_var.get()
+        self.mother.showrlttree_func()
+        self.mother.showconfnum_func()
+        self.top.destroy()
 
 
 
