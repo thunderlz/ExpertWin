@@ -1,3 +1,6 @@
+# coding:utf-8
+# coding by leiz
+
 import tkinter as tk
 from tkinter import *
 from tkinter import ttk
@@ -7,7 +10,6 @@ from datetime import datetime as dt
 from datetime import timedelta as delta
 
 from docx import Document
-from docx.shared import Inches
 
 import sqlite3
 import pandas as pd
@@ -16,12 +18,6 @@ import numpy as np
 # from PIL import Image, ImageTk
 class expertChoice:
     def __init__(self):
-
-        # 获取数据
-        # self.conn=pymysql.connect(host='localhost',port=3306,user='root',passwd='751982THUNDERlz',db='leizquant')
-        # self.sql='select * from stocklist'
-        # self.df=pd.read_sql(self.sql,self.conn)
-        # self.conn.close()
 
         # 统一的对齐方式
         self.duiqi='W'
@@ -119,7 +115,7 @@ class expertChoice:
         Label(self.base, text='抽取时间:').grid(row=3, column=4,sticky=self.duiqi)
         self.choicedate_var = StringVar()
         self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate_var)
-        self.choicedate_cb['values'] = [(delta(day) + dt.now()).strftime('%Y年%m月%d日') for day in range(-10,10)]
+        self.choicedate_cb['values'] = [(delta(day) + dt.now()).strftime('%Y{y}%m{m}%d{d}').format(y='年',m='月',d='日') for day in range(-10,10)]
         self.choicedate_cb.current(10)
         self.choicedate_cb.grid(row=3, column=5,sticky=self.duiqi)
 
@@ -358,7 +354,6 @@ class expertChoice:
 
     # 抽取数据的函数
     def choiceexpert_func(self):
-        # try:
         if int(self.expertchoicenum_var.get())>0:
             self.dfexpert = pd.read_sql('select * from tbexpert', self.dbconn)
             # 不为空
@@ -405,8 +400,7 @@ class expertChoice:
                 messagebox.showwarning(title='没有专家数据',message='没有专家数据，请导出专家！')
         else:
             messagebox.showinfo(title='抽取完成',message='如需重新抽取请重置结果！')
-        print(self.dfrltexpert)
-        # print(self.expertchoicenum_var.get())
+        # print(self.dfrltexpert)
         # 刷新数量
         self.showconfnum_func()
 
@@ -453,18 +447,14 @@ class expertChoice:
                 self.dfcata.to_sql('tbcata', self.dbconn, if_exists='replace')
 
                 messagebox.showinfo(title='导入成功', message='导入成功，可以按查看专家按钮查看。！')
-                # self.showconditiontree_func()
-                # self.choicefield_cb['values']=list(self.dfcata['专业分类'].unique())
             except:
                 messagebox.showwarning(title='导入失败',message='导入失败，请重新导入！')
 
     # 导出抽取结果数据
     def exportrlt_func(self):
-        # try:
-        #     print(self.confnum_var.get())
-        #     print(self.dfrltexpert[self.dfrltexpert['是否参加']=='参加'].shape[0])
+        try:
+
             if int(self.expertchoicenum_var.get())==0:
-                print('ok')
                 # 此处添加导出文件的代码
                 summary_doc=Document('评标专家抽取过程纪要函(模板).docx')
                 # print(self.projectname_var.get())
@@ -515,10 +505,11 @@ class expertChoice:
 
                 summary_doc.paragraphs[13].text = self.choicedate_var.get()
                 summary_doc.save('评标专家抽取过程纪要函'+dt.today().strftime('%Y%m%d')+'.docx')
+                messagebox.showinfo(title='专家抽取纪要生成', message='已经生成专家抽取纪要，请在程序安装目录查看！')
             else:
                 messagebox.showinfo(title='专家数量不符合要求',message='请确定参加评标会议的专家数量符合要求！')
-        # except:
-        #     messagebox.showwarning(title='警告', message='请先抽取专家！')
+        except:
+            messagebox.showwarning(title='警告', message='请先抽取专家！')
 
 
     # 清空专家库
