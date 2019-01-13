@@ -4,6 +4,7 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
 from datetime import datetime as dt
+from datetime import timedelta as delta
 
 from docx import Document
 from docx.shared import Inches
@@ -38,6 +39,11 @@ class expertChoice:
 
         self.fieldlist = ['专业类别', '工作单位', '工作部门', '区域', '专业资质等级']
 
+        # 业主代表的信息
+        self.bossname=''
+        self.bossworkpart=''
+        self.bosstelno=''
+        self.bossmobilno=''
 
 
         # 初始化数据库
@@ -113,8 +119,8 @@ class expertChoice:
         Label(self.base, text='抽取时间:').grid(row=3, column=4,sticky=self.duiqi)
         self.choicedate_var = StringVar()
         self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate_var)
-        self.choicedate_cb['values'] = (dt.now().strftime('%Y-%m-%d'))
-        self.choicedate_cb.current(0)
+        self.choicedate_cb['values'] = [(delta(day) + dt.now()).strftime('%Y-%m-%d') for day in range(-10,10)]
+        self.choicedate_cb.current(10)
         self.choicedate_cb.grid(row=3, column=5,sticky=self.duiqi)
 
         # 第五行
@@ -133,8 +139,14 @@ class expertChoice:
         self.bossnum_cb.current(1)
         self.bossnum_cb.grid(row=4, column=3,sticky=self.duiqi)
 
-        self.bossinfo_btn=Button(self.base,text='填写业主代表信息')
-        self.bossinfo_btn.grid(row=4, column=4,columnspan=2,rowspan=2,ipadx=10,ipady=10)
+        # 业主代表的信息
+        self.bossname_lb=Label(self.base, text=self.bossname)
+        self.bossname_lb.grid(row=4, column=4, sticky=E)
+        self.bossworkpart_lb=Label(self.base, text=self.bossworkpart)
+        self.bossworkpart_lb.grid(row=5, column=4, sticky=E)
+
+        self.bossinfo_btn=Button(self.base,text='填写业主代表信息',command=self.bossinfo_func)
+        self.bossinfo_btn.grid(row=4, column=5,columnspan=1,rowspan=2,ipadx=10,ipady=10,sticky=E)
 
         # 第六行
         Label(self.base, text='专家评委人数:').grid(row=5, column=0,sticky=self.duiqi)
@@ -388,7 +400,7 @@ class expertChoice:
                 messagebox.showwarning(title='没有专家数据',message='没有专家数据，请导出专家！')
         else:
             messagebox.showinfo(title='抽取完成',message='如需重新抽取请重置结果！')
-        # print(self.dfrltexpert)
+        print(self.dfrltexpert)
         # print(self.expertchoicenum_var.get())
         # 刷新数量
         self.showconfnum_func()
@@ -443,7 +455,9 @@ class expertChoice:
     # 导出抽取结果数据
     def exportrlt_func(self):
         # try:
-            if self.dfrltexpert[self.dfrltexpert['是否参加']=='参加'].shape[0]==5:
+        #     print(self.confnum_var.get())
+        #     print(self.dfrltexpert[self.dfrltexpert['是否参加']=='参加'].shape[0])
+            if int(self.expertchoicenum_var.get())==0:
                 print('ok')
                 # 此处添加导出文件的代码
                 summary_doc=Document('评标专家抽取过程纪要函(模板).docx')
@@ -478,6 +492,16 @@ class expertChoice:
                     summary_doc.tables[1].rows[j].cells[4].text = '技术'
                     summary_doc.tables[1].rows[j].cells[5].text = '抽取'
                     j=j+1
+
+                # 如果有业主代表
+                if int(self.bossnum_var.get())==1:
+                    summary_doc.tables[1].add_row()
+                    summary_doc.tables[1].rows[j].cells[0].text = str(j)
+                    summary_doc.tables[1].rows[j].cells[1].text = self.bossname
+                    summary_doc.tables[1].rows[j].cells[2].text = self.bossworkpart
+                    summary_doc.tables[1].rows[j].cells[3].text = self.bossmobilno
+                    summary_doc.tables[1].rows[j].cells[4].text = '业主代表'
+                    summary_doc.tables[1].rows[j].cells[5].text = ''
 
                 summary_doc.paragraphs[13].text = self.choicedate_var.get()
                 summary_doc.save('评标专家抽取过程纪要函'+dt.today().strftime('%Y%m%d')+'.docx')
@@ -538,6 +562,10 @@ class expertChoice:
         # print(args)
         expertcheck(self)
         # print('abcabc')
+    # 输入业主代表的信息
+    def bossinfo_func(self):
+        bossinfo(self)
+
 
 class expertwindow():
     def __init__(self,mother):
@@ -652,14 +680,14 @@ class expertcheck():
         # 选择
         Label(self.expertinfo, text='是否参加：').grid(row=5, column=2, sticky=W)
         self.isjoin_var = StringVar()
-        self.isjoin_cb = ttk.Combobox(self.expertinfo, height=1, textvariable=self.isjoin_var,width=8)
+        self.isjoin_cb = ttk.Combobox(self.expertinfo, height=1 ,state='readonly', textvariable=self.isjoin_var,width=8)
         self.isjoin_cb['values'] = ('参加', '不参加', '无法联系')
         # self.isjoin_cb.current(0)
         self.isjoin_var.set(self.dfexpert['是否参加'])
         self.isjoin_cb.grid(row=5, column=3,sticky=W)
 
         # 备注
-        Label(self.expertinfo, text='备注：').grid(row=6, column=0, sticky=W)
+        # Label(self.expertinfo, text='备注：').grid(row=6, column=0, sticky=W)
         # Text(self.expertinfo,height=4).grid(row=7,column=0,columnspan=4)
         Button(self.top,text='确定',width=20,command=self.expertconfirm_func).grid(row=1,column=0)
 
@@ -669,7 +697,59 @@ class expertcheck():
         self.mother.showconfnum_func()
         self.top.destroy()
 
+class bossinfo():
+    def __init__(self,mother):
+        self.mother = mother
+        self.top = Toplevel(self.mother.root, width=500, height=300)
+        self.top.title('业主代表信息')
+        self.top.geometry('550x300')
+        self.bossinfo=Frame(self.top,width=500,height=200)
+        self.bossinfo.grid(row=0,column=0)
 
+
+
+        # 业主代表姓名
+        Label(self.bossinfo, text='姓名：',width=8).grid(row=0, column=0,sticky=W)
+        self.bossname_var=StringVar()
+        Entry(self.bossinfo,width=18,textvariable=self.bossname_var).grid(row=0, column=1,sticky=W)
+
+        # 工作部门
+        Label(self.bossinfo, text='工作部门：', width=8).grid(row=0, column=2, sticky=W)
+        self.workpart_var = StringVar()
+        Entry(self.bossinfo, width=18, textvariable=self.workpart_var).grid(row=0, column=3, sticky=W)
+
+        # 工作电话
+        Label(self.bossinfo, text='工作电话：', width=8).grid(row=1, column=0, sticky=W)
+        self.telno_var = StringVar()
+        Entry(self.bossinfo, width=18, textvariable=self.telno_var).grid(row=1, column=1, sticky=W)
+
+        # 工作手机
+        Label(self.bossinfo, text='工作电话：', width=8).grid(row=1, column=2, sticky=W)
+        self.mobilno_var = StringVar()
+        Entry(self.bossinfo, width=18, textvariable=self.mobilno_var).grid(row=1, column=3, sticky=W)
+
+
+
+        Button(self.top,text='确定',width=18,command=self.bossconfirm_func).grid(row=1,column=0,pady=50,sticky=S)
+
+
+        # 初始化数据
+        self.bossname_var.set(self.mother.bossname)
+        self.workpart_var.set(self.mother.bossworkpart)
+        self.telno_var.set(self.mother.bosstelno)
+        self.mobilno_var.set(self.mother.bossmobilno)
+
+    def bossconfirm_func(self):
+
+        self.mother.bossname = self.bossname_var.get()
+        self.mother.bossworkpart = self.workpart_var.get()
+        self.mother.bosstelno = self.telno_var.get()
+        self.mother.bossmobilno = self.mobilno_var.get()
+        # 刷新页面
+        self.mother.bossname_lb.config(text=self.mother.bossname)
+        self.mother.bossworkpart_lb.config(text=self.mother.bossworkpart)
+
+        self.top.destroy()
 
 
 
