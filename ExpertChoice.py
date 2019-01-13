@@ -457,7 +457,6 @@ class expertChoice:
             if int(self.expertchoicenum_var.get())==0:
                 # 此处添加导出文件的代码
                 summary_doc=Document('评标专家抽取过程纪要函(模板).docx')
-                # print(self.projectname_var.get())
                 summary_doc.paragraphs[1].text = summary_doc.paragraphs[1].text+ self.projectname_var.get()
                 summary_doc.paragraphs[2].text = summary_doc.paragraphs[2].text + self.projectid_var.get()
                 summary_doc.paragraphs[3].text = summary_doc.paragraphs[3].text+ self.choicedate_var.get()
@@ -468,7 +467,6 @@ class expertChoice:
                 summary_doc.paragraphs[6].text = _[0] + self.confnum_var.get() + _[1] + self.bossnum_var.get() + _[2] +str(int(self.confnum_var.get())-int(self.bossnum_var.get()))+_[3]
                 summary_doc.paragraphs[7].text = summary_doc.paragraphs[7].text
                 summary_doc.paragraphs[8].text = summary_doc.paragraphs[8].text
-                print(summary_doc.paragraphs[8].text)
 
                 i=1
                 for index,row in self.dfrltexpert.iterrows():
@@ -654,12 +652,7 @@ class expertcheck():
         self.expertinfo=Frame(self.top,width=500,height=200)
         self.expertinfo.grid(row=0,column=0)
         self.expertindex = str(self.mother.rlttree.item(mother.rlttree.focus())['values'][0])
-        # print(self.mother.rlttree.item(mother.rlttree.focus()))
-        # print(self.expertindex)
-        # print(type(self.expertindex))
-        # print(self.mother.dfrltexpert.index)
         self.dfexpert=self.mother.dfrltexpert.loc[self.expertindex,:]
-        # print(self.dfexpert)
         Label(self.expertinfo, text='姓名：').grid(row=0, column=0,sticky=W)
         Label(self.expertinfo,text=self.dfexpert['姓名']).grid(row=0,column=1,sticky=W)
         Label(self.expertinfo, text='性别：').grid(row=0, column=2,sticky=W)
