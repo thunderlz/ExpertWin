@@ -119,14 +119,14 @@ class expertChoice:
         Label(self.base, text='抽取时间:').grid(row=3, column=4,sticky=self.duiqi)
         self.choicedate_var = StringVar()
         self.choicedate_cb = ttk.Combobox(self.base, height=1,state='readonly',textvariable=self.choicedate_var)
-        self.choicedate_cb['values'] = [(delta(day) + dt.now()).strftime('%Y-%m-%d') for day in range(-10,10)]
+        self.choicedate_cb['values'] = [(delta(day) + dt.now()).strftime('%Y年%m月%d日') for day in range(-10,10)]
         self.choicedate_cb.current(10)
         self.choicedate_cb.grid(row=3, column=5,sticky=self.duiqi)
 
         # 第五行
         Label(self.base, text='评标委员会人数:').grid(row=4, column=0,sticky=self.duiqi)
         self.confnum_var = StringVar()
-        self.confnum_cb = ttk.Combobox(self.base,textvariable=self.confnum_var)
+        self.confnum_cb = ttk.Combobox(self.base , textvariable=self.confnum_var , state='readonly')
         self.confnum_cb['values']=(5,7,9,11,13,15,17,19)
         self.confnum_cb.current(0)
         self.confnum_cb.grid(row=4, column=1,sticky=self.duiqi)
@@ -210,7 +210,8 @@ class expertChoice:
         Button(self.show,text='抽取专家',height=6,width=10,command=self.choiceexpert_func).grid(row=0,column=5,rowspan=4)
 
         # 抽取结果
-        Label(self.rlt, text='目前已抽取人数：',width=68,anchor='w').grid(row=0, column=0, sticky=self.duiqi)
+        self.rlt_lb = Label(self.rlt, text='目前已抽取人数：0',width=68,anchor='w')
+        self.rlt_lb.grid(row=0, column=0, sticky=self.duiqi)
 
         # 导出结果按钮
         self.export=Button(self.rlt,text='导出结果',width=15,command=self.exportrlt_func)
@@ -377,6 +378,9 @@ class expertChoice:
 
                 self.dfsampleexpert=pd.merge(self.dfconditionexpert,self.dfmajorexpert,on='index',how='inner')
                 self.dfsampleexpert=pd.DataFrame(self.dfsampleexpert['index'].unique())
+                # 去除重复的，已经抽取的就减掉。
+                # self.dfsampleexpert=self.dfsampleexpert.drop()
+
                 # dfsampleexpert是可以用来抽取的专家index清单，只有一列，sample就是在index，防止重名的情况发生
                 # dfrltexpert就是抽取出来的专家库，包含完整的列。
                 if self.dfsampleexpert.shape[0]>int(self.expertnum_var.get()):
@@ -390,12 +394,13 @@ class expertChoice:
                     self.choicetime_int+=1
                     _['抽取批次']=self.choicetime_int
 
+
                     self.dfrltexpert = pd.concat([self.dfrltexpert, _])
-                    # print(self.dfrltexpert.columns)
+                    self.rlt_lb.config(text='目前条件专家总数：' + str(self.dfsampleexpert.shape[0]) + '，已抽取专家人数：' + str(self.dfrltexpert.shape[0]))
                     self.showrlttree_func()
 
                 else:
-                    messagebox.showinfo(title='不够数量',message='专家数量不够，请重设条件！')
+                    messagebox.showwarning(title='不够数量',message='目前条件专家总数：' + str(self.dfsampleexpert.shape[0]) + '。\n专家数量不够，请重设条件！')
             else:
                 messagebox.showwarning(title='没有专家数据',message='没有专家数据，请导出专家！')
         else:
@@ -410,6 +415,7 @@ class expertChoice:
         self.dfrltexpert=pd.DataFrame()
         self.choicetime_int=0
         self.cleartree_func(self.rlttree)
+        self.rlt_lb.config(text='尚未抽取专家！')
         self.showconfnum_func()
 
 
@@ -470,6 +476,10 @@ class expertChoice:
                 summary_doc.paragraphs[5].text = _[0]+self.choicedate_var.get()+_[1]+self.choiceplace_var.get()+_[2]
                 _=summary_doc.paragraphs[6].text.split('|')
                 summary_doc.paragraphs[6].text = _[0] + self.confnum_var.get() + _[1] + self.bossnum_var.get() + _[2] +str(int(self.confnum_var.get())-int(self.bossnum_var.get()))+_[3]
+                summary_doc.paragraphs[7].text = summary_doc.paragraphs[7].text
+                summary_doc.paragraphs[8].text = summary_doc.paragraphs[8].text
+                print(summary_doc.paragraphs[8].text)
+
                 i=1
                 for index,row in self.dfrltexpert.iterrows():
                     summary_doc.tables[0].add_row()
@@ -489,7 +499,7 @@ class expertChoice:
                     summary_doc.tables[1].rows[j].cells[1].text = row['姓名']
                     summary_doc.tables[1].rows[j].cells[2].text = row['工作单位']
                     summary_doc.tables[1].rows[j].cells[3].text = row['联系电话(133)']
-                    summary_doc.tables[1].rows[j].cells[4].text = '技术'
+                    summary_doc.tables[1].rows[j].cells[4].text = '技术/经济'
                     summary_doc.tables[1].rows[j].cells[5].text = '抽取'
                     j=j+1
 
@@ -501,7 +511,7 @@ class expertChoice:
                     summary_doc.tables[1].rows[j].cells[2].text = self.bossworkpart
                     summary_doc.tables[1].rows[j].cells[3].text = self.bossmobilno
                     summary_doc.tables[1].rows[j].cells[4].text = '业主代表'
-                    summary_doc.tables[1].rows[j].cells[5].text = ''
+                    summary_doc.tables[1].rows[j].cells[5].text = '推荐'
 
                 summary_doc.paragraphs[13].text = self.choicedate_var.get()
                 summary_doc.save('评标专家抽取过程纪要函'+dt.today().strftime('%Y%m%d')+'.docx')
@@ -556,12 +566,16 @@ class expertChoice:
 
     # 查看专家
     def showexpert_func(self):
-        expertwindow(self)
+        try:
+            expertwindow(self)
+        except:
+            messagebox.showerror(title='专家库错误', message='专家库错误，请联系管理员！')
     # 确定专家
     def expertcheck_func(self,*args):
-        # print(args)
-        expertcheck(self)
-        # print('abcabc')
+        try:
+            expertcheck(self)
+        except:
+            messagebox.showwarning(title='请抽取专家',message='请抽取专家')
     # 输入业主代表的信息
     def bossinfo_func(self):
         bossinfo(self)
@@ -629,8 +643,8 @@ class expertwindow():
     def exportexpert_func(self):
 
         try:
-            writer = pd.ExcelWriter('导出专家库.xls')
-            self.dfexpert.to_excel(writer,sheet_name='专家名单',index=False)
+            writer = pd.ExcelWriter('导出专家库' + dt.today().strftime('%Y%m%d') + '.xls')
+            self.dfexpert.iloc[:,1:].to_excel(writer,sheet_name='专家名单',index=False)
             self.dfcata.to_excel(writer, sheet_name='专业分类', index=False)
             writer.save()
             messagebox.showinfo(title='导出成功',message='导出成功，请在程序同一个文件夹查看。')
@@ -724,7 +738,7 @@ class bossinfo():
         Entry(self.bossinfo, width=18, textvariable=self.telno_var).grid(row=1, column=1, sticky=W)
 
         # 工作手机
-        Label(self.bossinfo, text='工作电话：', width=8).grid(row=1, column=2, sticky=W)
+        Label(self.bossinfo, text='工作手机：', width=8).grid(row=1, column=2, sticky=W)
         self.mobilno_var = StringVar()
         Entry(self.bossinfo, width=18, textvariable=self.mobilno_var).grid(row=1, column=3, sticky=W)
 
