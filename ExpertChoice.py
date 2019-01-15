@@ -269,6 +269,9 @@ class expertChoice:
         self.checkdata_btn = Button(self.manage, text='查看专家库',command=self.showexpert_func)
         self.checkdata_btn.grid(row=0, column=2,ipadx=30,padx=0,sticky='W')
 
+        self.checkdata_btn = Button(self.manage, text='查看历史', command=self.showhistory_func)
+        self.checkdata_btn.grid(row=0, column=3, ipadx=30, padx=0, sticky='W')
+
         self.exit_btn = Button(self.manage, text='退出程序',width=30,command=exit)
         self.exit_btn.grid(row=0, column=3,ipadx=30,padx=250,sticky='E')
 
@@ -442,7 +445,7 @@ class expertChoice:
     def importdata_func(self):
         filename = filedialog.askopenfilename()
         if filename!='':
-        #    try:
+           try:
                 xlsfile=ExcelFile(filename)
                 self.dfexpert=xlsfile.parse(sheet_name='专家名单',header=0,converters={x:str for x in range(15,75)})
                 # 全部转换成文本
@@ -465,8 +468,12 @@ class expertChoice:
                 self.dfcata.to_sql('tbcata', self.dbconn, if_exists='replace')
 
                 messagebox.showinfo(title='导入成功', message='导入成功，可以按查看专家按钮查看。！')
-        #    except:
-        #        messagebox.showwarning(title='导入失败',message='导入失败，请重新导入！')
+           except:
+               messagebox.showwarning(title='导入失败',message='导入失败，请重新导入！')
+
+    # 查看历史
+    def showhistory_func(self):
+        pass
 
     # 导出抽取结果数据
     def exportrlt_func(self):
