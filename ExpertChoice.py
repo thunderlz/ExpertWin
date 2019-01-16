@@ -37,6 +37,7 @@ class expertChoice:
         self.root.title("中捷专家抽取系统")
         self.root.resizable(0, 0)
         self.root.geometry('960x640+200+100')
+        self.root.iconbitmap('logo.ico')
 
         # 全局变量
         # 由于要考虑多次抽取的问题，所以定义一个抽取结果的全局变量
@@ -84,7 +85,8 @@ class expertChoice:
 
 
         Label(self.base, text='招标人名称:').grid(row=0,column=2,sticky=self.duiqi)
-        self.boss = Entry(self.base , width=self.etwd)
+        self.bossname_var = StringVar()
+        self.boss = Entry(self.base , width=self.etwd,textvariable=self.bossname_var)
         self.boss.grid(row=0, column=3,sticky=self.duiqi)
 
         Label(self.base, text='招标代理机构\n项目编号:',width=15).grid(row=0, column=4,sticky=self.duiqi)
@@ -473,11 +475,11 @@ class expertChoice:
 
     # 查看历史
     def showhistory_func(self):
-        pass
+        historywindow(self)
 
     # 导出抽取结果数据
     def exportrlt_func(self):
-        # try:
+        try:
             if int(self.expertchoicenum_var.get())==0 and self.dfrltexpert[self.dfrltexpert['是否参加']=='未联系'].shape[0]==0:
                 # 此处添加导出文件的代码
                 summary_doc=Document('评标专家抽取过程纪要函(模板).docx')
@@ -547,18 +549,38 @@ class expertChoice:
                     ws.write(j + 5, 3, self.bossworkpart, wsstyle)
                     ws.write(j + 5, 4, self.bossnaid, wsstyle)
 
+                    dfexpertfinal = dfexpertfinal.append(pd.Series({'姓名': self.bossname,'工作部门': self.bossworkpart,'身份证号': self.bossnaid,'联系电话(办公)': self.bosstelno,'联系电话(133)': self.bossmobilno,'E-MAIL': self.bossemail,'性别':'业主'}),ignore_index=True)
+
                 summary_doc.paragraphs[13].text = self.choicedate_var.get()
                 summary_doc.save('评标专家抽取过程纪要函'+dt.today().strftime('%Y%m%d')+'.docx')
                 wbsave.save('专家费签收表' + dt.today().strftime('%Y%m%d') + '.xls')
 
-
-
+                # 写入数据库
+                dftosql=dfexpertfinal.copy()
+                prjkey=''
+                if self.projectname_var.get()=='':
+                    prjkey='空项目'
+                else:
+                    prjkey=self.projectname_var.get()
+                dftosql['项目名称'] = prjkey
+                dftosql['项目编号']=self.projectid_var.get()
+                dftosql['招标人名称']=self.bossname_var.get()
+                dftosql.reset_index(inplace=True)
+                dftosql.set_index('项目名称',inplace=True)
+                try:
+                    # 如果有重复，加入前先删除,一个项目名称只能有一次抽取记录被保存。
+                    if self.dbcur.execute('select count(*) from tbhistory where 项目名称=?',(prjkey,)).fetchall()[0][0]>0:
+                        self.dbcur.execute('delete from tbhistory where 项目名称=?', (prjkey,))
+                        self.dbconn.commit()
+                except:
+                    pass
+                dftosql.to_sql('tbhistory', self.dbconn, if_exists='append')
 
                 messagebox.showinfo(title='专家抽取纪要生成', message='已经生成专家抽取纪要，请在程序安装目录查看！')
             else:
                 messagebox.showinfo(title='专家数量不符合要求',message='请确定参加评标会议的专家数量符合要求！')
-        # except:
-        #     messagebox.showwarning(title='警告', message='请先抽取专家！')
+        except:
+            messagebox.showwarning(title='警告', message='导出错误，请联系管理员！')
 
 
     # 清空专家库
@@ -568,6 +590,7 @@ class expertChoice:
         self.dfexpert=self.dfnull
         self.dfnull.to_sql('tbexpert',self.dbconn,if_exists='replace')
         self.dfnull.to_sql('tbcata', self.dbconn, if_exists='replace')
+        # self.dfnull.to_sql('tbhistory', self.dbconn, if_exists='replace')
         messagebox.showinfo(title='清空专家库',message='专家库已经清空！')
 
 
@@ -637,7 +660,6 @@ class expertwindow():
         Button(self.top,text='退出',command=self.top.destroy,width=30).grid(row=0,column=3)
 
 
-
         # 初始化树
         self.experttree = ttk.Treeview(self.top, show="headings", height=20, columns=("a", "b", "c", "d", "e", "f",'g'))
         self.expertvbar = ttk.Scrollbar(self.top, orient=VERTICAL, command=self.experttree.yview)
@@ -693,7 +715,89 @@ class expertwindow():
         except:
             messagebox.showwarning(title='导出失败',message='导出失败，请重新导入！')
 
+# 历史窗口
+class historywindow():
+    def __init__(self,mother):
+        self.mother=mother
+        self.top=Toplevel(self.mother.root,width=900, height=500)
+        self.top.title('抽取历史')
+        # self.top.attributes('-topmost', 1)
 
+        # 基本信息
+        self.historynum_var=StringVar()
+        Label(self.top, text='抽取项目数').grid(row=0, column=0)
+        self.historynum_var_et = Entry(self.top, state='readonly',textvariable=self.historynum_var).grid(row=0, column=1)
+        Button(self.top, text='导出数据', command=self.historyexpert_func, width=25).grid(row=0, column=2)
+        Button(self.top, text='清空数据', command=self.cleardata_func, width=25).grid(row=0, column=3)
+        Button(self.top,text='退出',command=self.top.destroy,width=25).grid(row=0,column=4)
+
+
+        # 初始化树
+        self.historytree = ttk.Treeview(self.top, show="headings", height=20, columns=( "a" , "b" , "c" , "d" , "e" ,"f" , "g"))
+        self.historyvbar = ttk.Scrollbar(self.top, orient=VERTICAL, command=self.historytree.yview)
+        # 定义树形结构与滚动条
+        self.historytree.configure(yscrollcommand=self.historyvbar.set)
+        # 表格的标题
+        self.historytree.column("a", width=80, anchor="center")
+        self.historytree.column("b", width=50, anchor="center")
+        self.historytree.column("c", width=160, anchor="center")
+        self.historytree.column("d", width=140, anchor="center")
+        self.historytree.column("e", width=180, anchor="center")
+        self.historytree.column("f", width=120, anchor="center")
+        self.historytree.column("g", width=120, anchor="center")
+        self.historytree.heading("a", text="姓名")
+        self.historytree.heading("b", text="性别")
+        self.historytree.heading("c", text='工作单位')
+        self.historytree.heading("d", text="工作部门")
+        self.historytree.heading("e", text="身份证号")
+        self.historytree.heading("f", text="项目名称")
+        self.historytree.heading("g", text="招标人名称")
+        # 调用方法获取表格内容插入
+        self.historytree.grid(row=1, column=0, sticky='NEW', columnspan=5)
+        self.historyvbar.grid(row=1, column=5, sticky='NS', columnspan=4)
+
+
+        # 显示历史树
+        self.showhistorytree_func()
+
+
+    def __del__(self):
+        pass
+
+    # 显示历史树
+    def showhistorytree_func(self):
+        try:
+            self.dfhistory=read_sql('select 项目名称,项目编号,招标人名称,代理序号,姓名,性别,工作单位,工作部门,身份证号 from tbhistory',self.mother.dbconn)
+            self.historynum_var.set(self.dfhistory['项目名称'].unique().shape[0])
+            for index, row in self.dfhistory.iterrows():
+                self.historytree.insert("", "end", values=(row['姓名'],row['性别'], row['工作单位'], row['工作部门'], row['身份证号'], row['项目名称'], row['招标人名称']))
+        except:
+            self.historytree.insert("", "end", values=('没有数据', '', '', '', '', ''))
+    # 导出历史数据库
+    def historyexpert_func(self):
+        try:
+            writer = ExcelWriter('导出历史数据' + dt.today().strftime('%Y%m%d') + '.xls')
+            self.dfhistory.to_excel(writer,sheet_name='抽取历史数据',index=False)
+            writer.save()
+            messagebox.showinfo(title='导出成功',message='导出成功，请在程序同一个文件夹查看。')
+
+        except:
+            messagebox.showwarning(title='导出失败',message='导出失败，请重新导入！')
+
+    # 清空数据
+    def cleardata_func(self):
+        try:
+            self.mother.dbconn.execute('drop table tbhistory')
+            self.mother.dbconn.commit()
+            messagebox.showinfo(title='清空历史数据', message='历史数据已经清空！')
+            self.mother.cleartree_func(self.historytree)
+        except:
+            pass
+
+    def cleartree_func(self,tree):
+        x = tree.get_children()
+        for item in x:
+            tree.delete(item)
 
 class expertcheck():
     def __init__(self,mother):
