@@ -57,6 +57,10 @@ class expertChoice:
         self.bossmobilno = ''
         self.bossemail = ''
         self.bossnaid = ''
+        self.dfboss = pd.DataFrame([], index=range(0, 10),
+                                   columns=['bossname', 'bossworkpart', 'bosstelno', 'bossmobilno', 'bossemail',
+                                            'bossnaid'])
+        self.dfboss[:] = '未填写'
 
         # 初始化数据库
         self.dbconn = sqlite3.connect('mydb.db')
@@ -149,7 +153,7 @@ class expertChoice:
         self.bossnum_var = StringVar()
         self.bossnum_cb = ttk.Combobox(self.base, state='readonly', height=1, textvariable=self.bossnum_var,
                                        width=self.cbwd)
-        self.bossnum_cb['values'] = (1, 0)
+        self.bossnum_cb['values'] = (0, 1, 2, 3, 4)
         self.bossnum_cb.current(1)
         self.bossnum_cb.grid(row=4, column=3, sticky=self.duiqi)
 
@@ -545,28 +549,34 @@ class expertChoice:
                     j = j + 1
 
                 # 如果有业主代表
-                if int(self.bossnum_var.get()) == 1:
+                for bossindex in range(int(self.bossnum_var.get())):
                     summary_doc.tables[1].add_row()
                     summary_doc.tables[1].rows[j].cells[0].text = str(j)
-                    summary_doc.tables[1].rows[j].cells[1].text = self.bossname
-                    summary_doc.tables[1].rows[j].cells[2].text = self.bossworkpart
-                    summary_doc.tables[1].rows[j].cells[3].text = '{}/{}'.format(self.bossmobilno, self.bossemail)
+                    summary_doc.tables[1].rows[j].cells[1].text = self.dfboss.loc[bossindex, 'bossname']
+                    summary_doc.tables[1].rows[j].cells[2].text = self.dfboss.loc[bossindex, 'bossworkpart']
+                    summary_doc.tables[1].rows[j].cells[3].text = '{}/{}'.format(
+                        self.dfboss.loc[bossindex, 'bossmobilno'], self.dfboss.loc[bossindex, 'bossemail'])
                     summary_doc.tables[1].rows[j].cells[4].text = '业主代表'
                     summary_doc.tables[1].rows[j].cells[5].text = '推荐'
 
                     # 正式写入给钱的信息
-                    ws.write(j + 5, 1, self.bossname, wsstyle)
-                    ws.write(j + 5, 3, self.bossworkpart, wsstyle)
-                    ws.write(j + 5, 4, self.bossnaid, wsstyle)
+                    ws.write(j + 5, 1, self.dfboss.loc[bossindex, 'bossname'], wsstyle)
+                    ws.write(j + 5, 3, self.dfboss.loc[bossindex, 'bossworkpart'], wsstyle)
+                    ws.write(j + 5, 4, self.dfboss.loc[bossindex, 'bossnaid'], wsstyle)
+                    j = j + 1
 
-                    dfexpertfinal = dfexpertfinal.append(pd.Series(
-                        {'姓名': self.bossname, '工作部门': self.bossworkpart, '身份证号': self.bossnaid,
-                         '联系电话(办公)': self.bosstelno, '联系电话(133)': self.bossmobilno, 'E-MAIL': self.bossemail,
-                         '性别': '业主'}), ignore_index=True)
+                dfexpertfinal = dfexpertfinal.append(pd.DataFrame(
+                    {'姓名': self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossname'], '工作部门':
+                        self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossworkpart'], '身份证号':
+                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossnaid'], '联系电话(办公)':
+                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bosstelno'], '联系电话(133)':
+                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossmobilno'], 'E-MAIL':
+                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossemail'], '性别': '业主'}),
+                    ignore_index=True)
 
+                # 保存word
                 summary_doc.paragraphs[13].text = self.choicedate_var.get()
                 summary_doc.save('评标专家抽取过程纪要函' + dt.today().strftime('%Y%m%d') + '.docx')
-
                 # excel写入
                 txts = wsread.cell(2, 0).value.split('|')
                 txt = '{}'.join(txts)
@@ -597,10 +607,10 @@ class expertChoice:
                 except:
                     pass
                 dftosql.to_sql('tbhistory', self.dbconn, if_exists='append')
-
                 messagebox.showinfo(title='专家抽取纪要生成', message='已经生成专家抽取纪要，请在程序安装目录查看！')
             else:
                 messagebox.showinfo(title='专家数量不符合要求', message='请确定参加评标会议的专家数量符合要求！')
+
         except BaseException as e:
             print(e)
             messagebox.showwarning(title='警告', message='导出错误，请联系管理员！')
@@ -665,7 +675,7 @@ class expertChoice:
 
     # 输入业主代表的信息
     def bossinfo_func(self):
-        bossinfo(self)
+        bosswindow(self)
 
 
 class expertwindow():
@@ -890,15 +900,104 @@ class expertcheck():
         self.top.destroy()
 
 
+# 业主代表信息
+class bosswindow():
+    def __init__(self, mother):
+        self.mother = mother
+        self.top = Toplevel(self.mother.root, width=900, height=300)
+        self.top.title('推荐专家信息')
+        self.top.iconbitmap('logo.ico')
+        # self.top.attributes('-topmost', 1)
+
+        # 基本信息
+        self.bossnum_var = StringVar()
+        Label(self.top, text='推荐专家数量').grid(row=0, column=0)
+        self.historynum_var_et = Entry(self.top, state='readonly', textvariable=self.bossnum_var).grid(row=0,
+                                                                                                       column=1)
+        Button(self.top, text='确定', command=self.confirm_func, width=25).grid(row=0, column=2)
+
+        # 初始化树
+        self.bosstree = ttk.Treeview(self.top, show="headings", height=6,
+                                     columns=("a", "b", "c", "d", "e", "f", "g"))
+        self.bossvbar = ttk.Scrollbar(self.top, orient=VERTICAL, command=self.bosstree.yview)
+        # 定义树形结构与滚动条
+        self.bosstree.configure(yscrollcommand=self.bossvbar.set)
+        # 表格的标题
+        self.bosstree.column("a", width=50, anchor="center")
+        self.bosstree.column("b", width=50, anchor="center")
+        self.bosstree.column("c", width=160, anchor="center")
+        self.bosstree.column("d", width=160, anchor="center")
+        self.bosstree.column("e", width=160, anchor="center")
+        self.bosstree.column("f", width=160, anchor="center")
+        self.bosstree.column("g", width=160, anchor="center")
+
+        self.bosstree.heading("a", text="序号")
+        self.bosstree.heading("b", text="姓名")
+        self.bosstree.heading("c", text="工作单位")
+        self.bosstree.heading("d", text='工作电话')
+        self.bosstree.heading("e", text="手机")
+        self.bosstree.heading("f", text="EMAIL")
+        self.bosstree.heading("g", text="身份证号")
+
+        # 调用方法获取表格内容插入
+        self.bosstree.grid(row=1, column=0, sticky='NEW', columnspan=5)
+        self.bossvbar.grid(row=1, column=5, sticky='NS', columnspan=4)
+
+        # 显示历史树
+        self.showhbosstree_func()
+        self.bosstree.bind('<Double-1>', self.bosscheck_func)
+
+    def __del__(self):
+        pass
+
+    # 显示历史树
+    def showhbosstree_func(self):
+        try:
+            self.cleartree_func(self.bosstree)
+            self.bossnum_var.set(self.mother.bossnum_var.get())
+            for index, row in self.mother.dfboss.iterrows():
+                if index >= int(self.mother.bossnum_var.get()):
+                    break
+                self.bosstree.insert("", "end", values=(index,
+                                                        row['bossname'], row['bossworkpart'], row['bosstelno'],
+                                                        row['bossmobilno'], row['bossemail'],
+                                                        row['bossnaid']))
+        except:
+            self.bosstree.insert("", "end", values=('没有数据', '', '', '', '', ''))
+
+    def confirm_func(self):
+        try:
+            self.mother.bossname_lb.config(
+                text='/'.join(list(self.mother.dfboss.iloc[:int(self.mother.bossnum_var.get()), :]['bossname'])))
+        except BaseException as e:
+            print(e)
+            self.mother.bossname_lb.config(text='无推荐专家')
+        self.top.destroy()
+
+    # 确定业主代表
+    def bosscheck_func(self, *args):
+        try:
+            bossinfo(self)
+        except BaseException as e:
+            print(e)
+            messagebox.showwarning(title='出错', message='请联系管理员')
+
+    def cleartree_func(self, tree):
+        x = tree.get_children()
+        for item in x:
+            tree.delete(item)
+
+
 class bossinfo():
     def __init__(self, mother):
         self.mother = mother
-        self.top = Toplevel(self.mother.root, width=500, height=300)
+        self.top = Toplevel(self.mother.top, width=500, height=300)
         self.top.title('业主代表信息')
         self.top.geometry('400x150')
         self.top.iconbitmap('logo.ico')
         self.bossinfo = Frame(self.top, width=500, height=200)
         self.bossinfo.grid(row=0, column=0, pady=20)
+        self.bosssel = self.mother.bosstree.item(mother.bosstree.focus())['values']
 
         # 业主代表姓名
         Label(self.bossinfo, text='姓名：', width=8).grid(row=0, column=0, sticky=W)
@@ -931,28 +1030,29 @@ class bossinfo():
         Entry(self.bossinfo, width=18, textvariable=self.naid_var).grid(row=2, column=3, sticky=W)
 
         # confirn button
-        Button(self.top, text='确定', width=18, command=self.bossconfirm_func).grid(row=1, column=0, pady=10, sticky=S)
+        Button(self.bossinfo, text='确定', width=18, command=self.bossconfirm_func).grid(row=3, column=0, columnspan=2,
+                                                                                       pady=20, sticky=S)
+        Button(self.bossinfo, text='取消', width=18, command=lambda: self.top.destroy()).grid(row=3, column=2,
+                                                                                            columnspan=2, pady=20,
+                                                                                            sticky=S)
 
         # 初始化数据
-        self.bossname_var.set(self.mother.bossname)
-        self.workpart_var.set(self.mother.bossworkpart)
-        self.telno_var.set(self.mother.bosstelno)
-        self.mobilno_var.set(self.mother.bossmobilno)
-        self.email_var.set(self.mother.bossemail)
-        self.naid_var.set(self.mother.bossnaid)
+        self.bossname_var.set(self.bosssel[1])
+        self.workpart_var.set(self.bosssel[2])
+        self.telno_var.set(self.bosssel[3])
+        self.mobilno_var.set(self.bosssel[4])
+        self.email_var.set(self.bosssel[5])
+        self.naid_var.set(self.bosssel[6])
 
     def bossconfirm_func(self):
-        self.mother.bossname = self.bossname_var.get()
-        self.mother.bossworkpart = self.workpart_var.get()
-        self.mother.bosstelno = self.telno_var.get()
-        self.mother.bossmobilno = self.mobilno_var.get()
-        self.mother.bossemail = self.email_var.get()
-        self.mother.bossnaid = self.naid_var.get()
-        # 刷新页面
-        self.mother.bossname_lb.config(
-            text='{}/{}\n{}/{}'.format(self.mother.bossname, self.mother.bossworkpart, self.mother.bosstelno,
-                                       self.mother.bossmobilno))
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bossname'] = self.bossname_var.get()
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bossworkpart'] = self.workpart_var.get()
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bosstelno'] = self.telno_var.get()
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bossmobilno'] = self.mobilno_var.get()
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bossemail'] = self.email_var.get()
+        self.mother.mother.dfboss.loc[self.bosssel[0], 'bossnaid'] = self.naid_var.get()
 
+        self.mother.showhbosstree_func()
         self.top.destroy()
 
 
