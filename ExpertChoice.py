@@ -571,7 +571,7 @@ class expertChoice:
                          self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossnaid'], '联系电话(办公)':
                          self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bosstelno'], '联系电话(133)':
                          self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossmobilno'], 'E-MAIL':
-                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossemail'], '性别': '业主'}),
+                         self.dfboss.iloc[:int(self.bossnum_var.get()), :]['bossemail'], '工作单位': '业主单位','性别':'未知'}),
                     ignore_index=True)
 
                 # 保存word
